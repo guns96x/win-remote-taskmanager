@@ -30,6 +30,19 @@ const elements = {
   summaryDisk: document.getElementById('summary-disk'),
   summaryNet: document.getElementById('summary-net'),
   summaryGpu: document.getElementById('summary-gpu'),
+  summaryAsusMode: document.getElementById('summary-asus-mode'),
+  chipAsus: document.getElementById('chip-asus'),
+  asusActiveModePill: document.getElementById('asus-active-mode-pill'),
+  screenStatusPill: document.getElementById('screen-status-pill'),
+  screenToggleBtn: document.getElementById('screen-toggle-btn'),
+  screenBtnIcon: document.getElementById('screen-btn-icon'),
+  screenBtnText: document.getElementById('screen-btn-text'),
+  kbdLevelPill: document.getElementById('kbd-level-pill'),
+  kbdToggleBtn: document.getElementById('kbd-toggle-btn'),
+  batteryStatusPill: document.getElementById('battery-status-pill'),
+  batteryPctText: document.getElementById('battery-pct-text'),
+  batteryProgressBar: document.getElementById('battery-progress-bar'),
+  keepawakeBadge: document.getElementById('keepawake-badge'),
   searchInput: document.getElementById('process-search-input'),
   searchClearBtn: document.getElementById('search-clear-btn'),
   processesTbody: document.getElementById('processes-tbody'),
@@ -128,6 +141,9 @@ function handleWsMessage(data) {
     state.processes = data.processes || [];
     state.totalProcesses = data.total_processes || 0;
     renderSystemInfo();
+    if (data.metrics && data.metrics.asus) {
+      updateAsusUI(data.metrics.asus);
+    }
     updateAll();
   } else if (data.type === 'tick') {
     state.metrics = data.metrics;
@@ -135,7 +151,28 @@ function handleWsMessage(data) {
       state.processes = data.processes;
       state.totalProcesses = data.total_processes || state.processes.length;
     }
+    if (data.metrics && data.metrics.asus) {
+      updateAsusUI(data.metrics.asus);
+    }
     updateAll();
+  } else if (data.type === 'asus_update') {
+    if (data.asus) {
+      updateAsusUI(data.asus);
+    }
+  } else if (data.type === 'asus_action_result') {
+    if (data.result && data.result.success) {
+      if (data.action === 'perf') {
+        showToast(`Режим змінено: ${data.result.mode_name}`);
+      } else if (data.action === 'keyboard' || data.action === 'keyboard_toggle') {
+        showToast(`Підсвітка клавіатури: рівень ${data.result.level}`);
+      } else if (data.action.startsWith('screen_')) {
+        showToast(data.result.message || 'Стан екрана оновлено');
+      } else if (data.action === 'hibernate') {
+        showToast(data.result.message || 'Перехід у гібернацію');
+      }
+    } else if (data.result && data.result.error) {
+      showToast(`Помилка: ${data.result.error}`);
+    }
   } else if (data.type === 'kill_result') {
     if (data.result.success) {
       showToast(data.result.message);
@@ -149,6 +186,86 @@ function handleWsMessage(data) {
     } else {
       showToast(`Помилка: ${data.result.error}`);
     }
+  }
+}
+
+function updateAsusUI(asus) {
+  if (!asus) return;
+  state.asus = asus;
+
+  // 1. Performance Mode Buttons & Badge
+  document.querySelectorAll('.asus-mode-btn').forEach(btn => {
+    const m = parseInt(btn.getAttribute('data-mode'), 10);
+    if (m === asus.perf_mode_id) {
+      btn.classList.add('active');
+    } else {
+      btn.classList.remove('active');
+    }
+  });
+
+  if (elements.asusActiveModePill) {
+    elements.asusActiveModePill.className = `mode-pill ${asus.perf_mode_key || 'turbo'}`;
+    const icon = asus.perf_mode_id === 1 ? '🚀' : (asus.perf_mode_id === 2 ? '🌿' : '⚖️');
+    elements.asusActiveModePill.textContent = `${icon} ${asus.perf_mode_name}`;
+  }
+
+  if (elements.summaryAsusMode) {
+    elements.summaryAsusMode.textContent = asus.perf_mode_name;
+  }
+
+  // 2. Screen Controls
+  if (elements.screenStatusPill && elements.screenToggleBtn) {
+    if (asus.monitor_sleeping) {
+      elements.screenStatusPill.className = 'status-pill screen-off';
+      elements.screenStatusPill.textContent = '💤 Екран вимкнено (ноутбук онлайн)';
+      elements.screenToggleBtn.className = 'screen-btn-primary is-sleeping';
+      if (elements.screenBtnIcon) elements.screenBtnIcon.textContent = '☀️';
+      if (elements.screenBtnText) elements.screenBtnText.textContent = 'Увімкнути екран';
+    } else {
+      elements.screenStatusPill.className = 'status-pill screen-on';
+      elements.screenStatusPill.textContent = '🟢 Екран увімкнено';
+      elements.screenToggleBtn.className = 'screen-btn-primary';
+      if (elements.screenBtnIcon) elements.screenBtnIcon.textContent = '🌙';
+      if (elements.screenBtnText) elements.screenBtnText.textContent = 'Вимкнути екран (ПК онлайн)';
+    }
+  }
+
+  // 3. Keyboard Backlight
+  if (elements.kbdLevelPill) {
+    elements.kbdLevelPill.textContent = `Рівень: ${asus.keyboard_level}`;
+  }
+  document.querySelectorAll('.kbd-level-btn').forEach(btn => {
+    const lvl = parseInt(btn.getAttribute('data-level'), 10);
+    if (lvl === asus.keyboard_level) {
+      btn.classList.add('active');
+    } else {
+      btn.classList.remove('active');
+    }
+  });
+
+  // 4. Battery & Power
+  if (elements.batteryPctText) {
+    elements.batteryPctText.textContent = `${asus.battery_percent}%`;
+  }
+  if (elements.batteryProgressBar) {
+    elements.batteryProgressBar.style.width = `${Math.min(100, Math.max(0, asus.battery_percent))}%`;
+  }
+  if (elements.batteryStatusPill) {
+    if (asus.is_charging) {
+      elements.batteryStatusPill.textContent = '⚡ Заряджається';
+      elements.batteryStatusPill.className = 'status-pill ac-connected';
+    } else if (asus.is_ac_plugged) {
+      elements.batteryStatusPill.textContent = '🔌 Підключено до мережі';
+      elements.batteryStatusPill.className = 'status-pill ac-connected';
+    } else {
+      elements.batteryStatusPill.textContent = '🔋 Робота від батареї';
+      elements.batteryStatusPill.className = 'status-pill battery-only';
+    }
+  }
+  if (elements.keepawakeBadge) {
+    elements.keepawakeBadge.textContent = asus.keep_awake_active
+      ? '🛡️ Захист від засинання: Активний'
+      : 'Захист вимкнено';
   }
 }
 
@@ -798,6 +915,12 @@ function setupEventListeners() {
         sendPower(act);
       } else if (act === 'sleep') {
         showConfirmDialog('Перевести ПК у режим сну?', 'Комп\'ютер перейде в сплячий режим.', () => sendPower(act));
+      } else if (act === 'hibernate') {
+        showConfirmDialog('Перевести ПК у глибоку гібернацію?', 'Стан системи збережеться на SSD, комп\'ютер повністю вимкнеться (S4).', () => {
+          if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: 'asus_hibernate' }));
+          }
+        });
       } else if (act === 'restart') {
         showConfirmDialog('Перезавантажити ПК?', 'Комп\'ютер перезапуститься через 5 секунд.', () => sendPower(act));
       } else if (act === 'shutdown') {
@@ -810,6 +933,55 @@ function setupEventListeners() {
     if (ws && ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({ type: 'power', action: action }));
     }
+  }
+
+  // ASUS TUF Hardware Actions
+  document.querySelectorAll('.asus-mode-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const mode = parseInt(btn.getAttribute('data-mode'), 10);
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'asus_perf', mode: mode }));
+      }
+    });
+  });
+
+  if (elements.screenToggleBtn) {
+    elements.screenToggleBtn.addEventListener('click', () => {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'asus_screen', action: 'toggle' }));
+      }
+    });
+  }
+
+  document.querySelectorAll('.kbd-level-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const lvl = parseInt(btn.getAttribute('data-level'), 10);
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'asus_keyboard', level: lvl }));
+      }
+    });
+  });
+
+  if (elements.kbdToggleBtn) {
+    elements.kbdToggleBtn.addEventListener('click', () => {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'asus_keyboard_toggle' }));
+      }
+    });
+  }
+
+  if (elements.chipAsus) {
+    elements.chipAsus.addEventListener('click', () => {
+      document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+      const powerNav = document.querySelector('.nav-item[data-tab="tab-power"]');
+      if (powerNav) powerNav.classList.add('active');
+      const powerTab = document.getElementById('tab-power');
+      if (powerTab) powerTab.classList.add('active');
+      state.activeTab = 'tab-power';
+      sendClientConfig();
+      updateAll();
+    });
   }
 
   // Update Rate Buttons

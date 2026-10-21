@@ -54,6 +54,14 @@ class PowerRequest(BaseModel):
     delay_sec: int = 5
 
 
+class AsusPerfRequest(BaseModel):
+    mode: int
+
+
+class AsusKeyboardRequest(BaseModel):
+    level: int
+
+
 @app.get("/api/system")
 def get_system_info():
     snap = collector.get_snapshot()
@@ -118,6 +126,50 @@ def handle_power(action: str, req: PowerRequest = PowerRequest()):
     elif action == "cancel":
         return cancel_shutdown()
     raise HTTPException(status_code=400, detail=f"Невідома дія живлення: {action}")
+
+
+# --- ASUS TUF Hardware & G-Helper Endpoints ---
+
+@app.get("/api/asus/status")
+def get_asus_status():
+    return collector.asus_hw.get_hardware_status()
+
+
+@app.post("/api/asus/performance")
+def set_asus_performance(req: AsusPerfRequest):
+    res = collector.asus_hw.set_performance_mode(req.mode)
+    if not res.get("success"):
+        raise HTTPException(status_code=400, detail=res.get("error", "Помилка зміни режиму"))
+    return res
+
+
+@app.post("/api/asus/keyboard")
+def set_asus_keyboard(req: AsusKeyboardRequest):
+    res = collector.asus_hw.set_keyboard_backlight(req.level)
+    if not res.get("success"):
+        raise HTTPException(status_code=400, detail=res.get("error", "Помилка зміни підсвітки"))
+    return res
+
+
+@app.post("/api/asus/keyboard/toggle")
+def toggle_asus_keyboard():
+    return collector.asus_hw.toggle_keyboard_backlight()
+
+
+@app.post("/api/asus/screen/{action}")
+def handle_asus_screen(action: str):
+    if action == "sleep":
+        return collector.asus_hw.sleep_screen()
+    elif action == "wake":
+        return collector.asus_hw.wake_screen()
+    elif action == "toggle":
+        return collector.asus_hw.toggle_screen()
+    raise HTTPException(status_code=400, detail=f"Невідома дія екрана: {action}")
+
+
+@app.post("/api/asus/hibernate")
+def handle_asus_hibernate():
+    return collector.asus_hw.hibernate_pc()
 
 
 @app.get("/app.apk")
@@ -237,6 +289,39 @@ async def websocket_live(websocket: WebSocket):
                 elif act == "cancel":
                     res = cancel_shutdown()
                 await websocket.send_json({"type": "power_result", "action": act, "result": res})
+
+            elif msg_type == "asus_perf":
+                mode = int(data.get("mode", 0))
+                res = collector.asus_hw.set_performance_mode(mode)
+                await websocket.send_json({"type": "asus_action_result", "action": "perf", "result": res})
+                await websocket.send_json({"type": "asus_update", "asus": collector.asus_hw.get_hardware_status()})
+
+            elif msg_type == "asus_keyboard":
+                level = int(data.get("level", 0))
+                res = collector.asus_hw.set_keyboard_backlight(level)
+                await websocket.send_json({"type": "asus_action_result", "action": "keyboard", "result": res})
+                await websocket.send_json({"type": "asus_update", "asus": collector.asus_hw.get_hardware_status()})
+
+            elif msg_type == "asus_keyboard_toggle":
+                res = collector.asus_hw.toggle_keyboard_backlight()
+                await websocket.send_json({"type": "asus_action_result", "action": "keyboard_toggle", "result": res})
+                await websocket.send_json({"type": "asus_update", "asus": collector.asus_hw.get_hardware_status()})
+
+            elif msg_type == "asus_screen":
+                act = str(data.get("action", "toggle"))
+                res = {"success": False}
+                if act == "sleep":
+                    res = collector.asus_hw.sleep_screen()
+                elif act == "wake":
+                    res = collector.asus_hw.wake_screen()
+                elif act == "toggle":
+                    res = collector.asus_hw.toggle_screen()
+                await websocket.send_json({"type": "asus_action_result", "action": f"screen_{act}", "result": res})
+                await websocket.send_json({"type": "asus_update", "asus": collector.asus_hw.get_hardware_status()})
+
+            elif msg_type == "asus_hibernate":
+                res = collector.asus_hw.hibernate_pc()
+                await websocket.send_json({"type": "asus_action_result", "action": "hibernate", "result": res})
 
     except (WebSocketDisconnect, asyncio.CancelledError):
         pass

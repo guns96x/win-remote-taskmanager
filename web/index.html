@@ -61,6 +61,10 @@
         <span class="chip-label">GPU</span>
         <span class="chip-val" id="summary-gpu">0%</span>
       </div>
+      <div class="summary-chip asus-chip" id="chip-asus">
+        <span class="chip-label">ASUS</span>
+        <span class="chip-val" id="summary-asus-mode">Турбо</span>
+      </div>
     </div>
 
     <!-- Search Bar for Processes -->
@@ -204,46 +208,163 @@
         </div>
       </section>
 
-      <!-- TAB 3: POWER & ACTIONS -->
+      <!-- TAB 3: POWER & ASUS CONTROL -->
       <section id="tab-power" class="tab-pane">
         <div class="power-container">
-          <h2 class="section-title">Віддалене керування ПК</h2>
-          <p class="section-desc">Швидкі дії живлення комп'ютера та налаштування частоти оновлення.</p>
-
-          <div class="power-actions-grid">
-            <button class="power-card" data-power="lock">
-              <div class="power-icon">🔒</div>
-              <div class="power-info">
-                <h3>Заблокувати ПК</h3>
-                <p>Заблокувати сеанс Windows (Win + L)</p>
+          
+          <!-- ASUS TUF Profiles (G-Helper) -->
+          <div class="asus-section-card">
+            <div class="card-section-header">
+              <div class="header-badge-row">
+                <span class="asus-badge">ASUS TUF GAMING</span>
+                <span id="asus-active-mode-pill" class="mode-pill turbo">🚀 Турбо</span>
               </div>
-            </button>
+              <h2 class="card-title">Профіль продуктивності (G-Helper)</h2>
+              <p class="card-desc">Миттєве перемикання TDP, лімітів процесора та алгоритму охолодження.</p>
+            </div>
 
-            <button class="power-card" data-power="sleep">
-              <div class="power-icon">🌙</div>
-              <div class="power-info">
-                <h3>Режим сну</h3>
-                <p>Перевести комп'ютер у сплячий режим</p>
-              </div>
-            </button>
+            <div class="asus-modes-grid">
+              <button class="asus-mode-btn" data-mode="2" id="mode-btn-2">
+                <div class="mode-btn-icon">🌿</div>
+                <div class="mode-btn-content">
+                  <div class="mode-btn-title">Тихий</div>
+                  <div class="mode-btn-sub">Silent • Без шуму</div>
+                </div>
+              </button>
 
-            <button class="power-card warning" data-power="restart">
-              <div class="power-icon">🔄</div>
-              <div class="power-info">
-                <h3>Перезавантажити ПК</h3>
-                <p>Перезапуск системи через 5 секунд</p>
-              </div>
-            </button>
+              <button class="asus-mode-btn" data-mode="0" id="mode-btn-0">
+                <div class="mode-btn-icon">⚖️</div>
+                <div class="mode-btn-content">
+                  <div class="mode-btn-title">Баланс</div>
+                  <div class="mode-btn-sub">Balanced • Стандарт</div>
+                </div>
+              </button>
 
-            <button class="power-card danger" data-power="shutdown">
-              <div class="power-icon">⏻</div>
-              <div class="power-info">
-                <h3>Вимкнути ПК</h3>
-                <p>Повне завершення роботи комп'ютера</p>
-              </div>
-            </button>
+              <button class="asus-mode-btn active" data-mode="1" id="mode-btn-1">
+                <div class="mode-btn-icon">🚀</div>
+                <div class="mode-btn-content">
+                  <div class="mode-btn-title">Турбо</div>
+                  <div class="mode-btn-sub">Turbo • Макс. швидкість</div>
+                </div>
+              </button>
+            </div>
           </div>
 
+          <!-- ASUS Screen / Monitor Control -->
+          <div class="asus-section-card">
+            <div class="card-section-header">
+              <div class="header-badge-row">
+                <span class="asus-badge">ДИСПЛЕЙ</span>
+                <span id="screen-status-pill" class="status-pill screen-on">🟢 Екран увімкнено</span>
+              </div>
+              <h2 class="card-title">Керування екраном ноутбука</h2>
+              <p class="card-desc">Безпечне гасіння матриці без розриву зв'язку Tailscale та без засинання ПК.</p>
+            </div>
+
+            <div class="screen-controls-row">
+              <button id="screen-toggle-btn" class="screen-btn-primary">
+                <span class="screen-btn-icon" id="screen-btn-icon">🌙</span>
+                <span class="screen-btn-text" id="screen-btn-text">Вимкнути екран (ПК онлайн)</span>
+              </button>
+            </div>
+            <div class="screen-tip">
+              💡 <b>Підказка:</b> Гасить дисплей для збереження матриці та заряду, при цьому процесор, мережа й віддалений диспетчер залишаються активними.
+            </div>
+          </div>
+
+          <!-- ASUS Keyboard Backlight -->
+          <div class="asus-section-card">
+            <div class="card-section-header">
+              <div class="header-badge-row">
+                <span class="asus-badge">AURA / ПІДСВІТКА</span>
+                <span id="kbd-level-pill" class="status-pill">Рівень: 0</span>
+              </div>
+              <h2 class="card-title">Підсвітка клавіатури TUF</h2>
+              <p class="card-desc">Регулювання яскравості підсвітки клавіш ноутбука.</p>
+            </div>
+
+            <div class="kbd-levels-row">
+              <button class="kbd-level-btn" data-level="0" id="kbd-btn-0">Вимк</button>
+              <button class="kbd-level-btn" data-level="1" id="kbd-btn-1">1 (Слабко)</button>
+              <button class="kbd-level-btn" data-level="2" id="kbd-btn-2">2 (Середнє)</button>
+              <button class="kbd-level-btn" data-level="3" id="kbd-btn-3">3 (Макс)</button>
+              <button id="kbd-toggle-btn" class="kbd-toggle-action">💡 Вкл/Викл</button>
+            </div>
+          </div>
+
+          <!-- Battery & Power State -->
+          <div class="asus-section-card">
+            <div class="card-section-header">
+              <div class="header-badge-row">
+                <span class="asus-badge">ЖИВЛЕННЯ</span>
+                <span id="battery-status-pill" class="status-pill ac-connected">⚡ Живлення від мережі</span>
+              </div>
+              <h2 class="card-title">Акумулятор та захист</h2>
+            </div>
+
+            <div class="battery-meter-container">
+              <div class="battery-header">
+                <span class="battery-label">Рівень заряду</span>
+                <span id="battery-pct-text" class="battery-pct">100%</span>
+              </div>
+              <div class="battery-progress-track">
+                <div id="battery-progress-bar" class="battery-progress-fill" style="width: 100%;"></div>
+              </div>
+              <div class="battery-sub-info">
+                <span id="keepawake-badge" class="keepawake-badge">🛡️ Захист від засинання: Активний</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Windows Power Actions -->
+          <div class="power-windows-section">
+            <h2 class="section-title">Дії живлення Windows</h2>
+            <p class="section-desc">Швидкі команди завершення сеансу або переведення системи у сон.</p>
+
+            <div class="power-actions-grid">
+              <button class="power-card" data-power="lock">
+                <div class="power-icon">🔒</div>
+                <div class="power-info">
+                  <h3>Заблокувати ПК</h3>
+                  <p>Заблокувати сеанс Windows (Win + L)</p>
+                </div>
+              </button>
+
+              <button class="power-card" data-power="sleep">
+                <div class="power-icon">🌙</div>
+                <div class="power-info">
+                  <h3>Режим сну</h3>
+                  <p>Перевести комп'ютер у сплячий режим</p>
+                </div>
+              </button>
+
+              <button class="power-card" data-power="hibernate">
+                <div class="power-icon">❄️</div>
+                <div class="power-info">
+                  <h3>Глибока гібернація</h3>
+                  <p>Зберегти стан на SSD та вимкнути живлення (S4)</p>
+                </div>
+              </button>
+
+              <button class="power-card warning" data-power="restart">
+                <div class="power-icon">🔄</div>
+                <div class="power-info">
+                  <h3>Перезавантажити ПК</h3>
+                  <p>Перезапуск системи через 5 секунд</p>
+                </div>
+              </button>
+
+              <button class="power-card danger" data-power="shutdown">
+                <div class="power-icon">⏻</div>
+                <div class="power-info">
+                  <h3>Вимкнути ПК</h3>
+                  <p>Повне завершення роботи комп'ютера</p>
+                </div>
+              </button>
+            </div>
+          </div>
+
+          <!-- Settings: Refresh Rate -->
           <div class="settings-card">
             <h3>Частота оновлення диспетчера</h3>
             <p>Виберіть інтервал оновлення для економії заряду смартфона:</p>
@@ -254,6 +375,7 @@
               <button class="rate-btn" data-rate="5.0">5.0 сек (Економія)</button>
             </div>
           </div>
+
         </div>
       </section>
 

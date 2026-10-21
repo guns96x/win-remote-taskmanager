@@ -1,4 +1,4 @@
-const CACHE_NAME = 'win-taskmgr-v1';
+const CACHE_NAME = 'win-taskmgr-v2';
 const ASSETS = [
   '/',
   '/index.html',
@@ -32,13 +32,20 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Let WebSocket and API requests bypass cache
+  // Let WebSocket and API requests bypass cache completely
   if (event.request.url.includes('/api/') || event.request.url.includes('/ws/')) {
     return;
   }
+  // Network first, fallback to cache
   event.respondWith(
-    caches.match(event.request).then((cached) => {
-      return cached || fetch(event.request).catch(() => cached);
-    })
+    fetch(event.request)
+      .then((networkResponse) => {
+        if (networkResponse && networkResponse.status === 200) {
+          const clone = networkResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+        }
+        return networkResponse;
+      })
+      .catch(() => caches.match(event.request))
   );
 });

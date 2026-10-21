@@ -235,6 +235,7 @@ class MetricsCollector:
                     "hostname": self.hostname
                 },
                 "gpu": gpu_info,
+                "asus": asus_status,
                 "history": {
                     "cpu": list(self.cpu_history),
                     "cpu_temp": list(self.cpu_temp_history),
