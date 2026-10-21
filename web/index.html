@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Windows Диспетчер завдань</title>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#202020">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="icon" type="image/png" href="/icons/icon-192.png">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div id="app" class="fluent-app">
+    
+    <!-- Top Header -->
+    <header class="app-header">
+      <div class="header-left">
+        <div class="taskmgr-logo">
+          <svg viewBox="0 0 24 24" class="logo-icon">
+            <rect x="3" y="3" width="8" height="8" rx="1.5" fill="#60cdff"/>
+            <rect x="13" y="3" width="8" height="8" rx="1.5" fill="#0078d4"/>
+            <rect x="3" y="13" width="8" height="8" rx="1.5" fill="#2b88d8"/>
+            <rect x="13" y="13" width="8" height="8" rx="1.5" fill="#107c41"/>
+          </svg>
+        </div>
+        <div class="header-title">
+          <span class="app-name">Диспетчер завдань</span>
+          <span id="host-badge" class="host-badge">Мій ПК</span>
+        </div>
+      </div>
+
+      <div class="header-right">
+        <div id="live-indicator" class="live-pill connected">
+          <span class="pulse-dot"></span>
+          <span id="live-text" class="live-label">Наживо</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Global Quick Summary Strip -->
+    <div class="quick-summary-strip">
+      <div class="summary-chip" id="chip-cpu">
+        <span class="chip-label">ЦП</span>
+        <span class="chip-val" id="summary-cpu">0%</span>
+      </div>
+      <div class="summary-chip" id="chip-ram">
+        <span class="chip-label">ОЗП</span>
+        <span class="chip-val" id="summary-ram">0%</span>
+      </div>
+      <div class="summary-chip" id="chip-disk">
+        <span class="chip-label">Диск</span>
+        <span class="chip-val" id="summary-disk">0 МБ/с</span>
+      </div>
+      <div class="summary-chip" id="chip-net">
+        <span class="chip-label">Мережа</span>
+        <span class="chip-val" id="summary-net">0 Кбіт/с</span>
+      </div>
+      <div class="summary-chip" id="chip-gpu">
+        <span class="chip-label">GPU</span>
+        <span class="chip-val" id="summary-gpu">0%</span>
+      </div>
+    </div>
+
+    <!-- Search Bar for Processes -->
+    <div id="search-container" class="search-container">
+      <div class="search-box">
+        <svg class="search-icon" viewBox="0 0 20 20" fill="currentColor">
+          <path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd"/>
+        </svg>
+        <input type="text" id="process-search-input" placeholder="Пошук процесу за назвою або PID..." autocomplete="off">
+        <button id="search-clear-btn" class="search-clear-btn" style="display: none;">✕</button>
+      </div>
+    </div>
+
+    <!-- Main Content Tabs -->
+    <main class="main-content">
+      
+      <!-- TAB 1: PROCESSES -->
+      <section id="tab-processes" class="tab-pane active">
+        <!-- Category Filter Pills -->
+        <div class="category-pills">
+          <button class="cat-pill active" data-cat="all">Всі <span id="count-all" class="badge">0</span></button>
+          <button class="cat-pill" data-cat="app">Програми <span id="count-app" class="badge">0</span></button>
+          <button class="cat-pill" data-cat="background">Фонові <span id="count-bg" class="badge">0</span></button>
+          <button class="cat-pill" data-cat="windows">Windows <span id="count-win" class="badge">0</span></button>
+        </div>
+
+        <!-- Processes Table -->
+        <div class="table-wrapper">
+          <table class="processes-table" id="procs-table">
+            <thead>
+              <tr>
+                <th class="col-name sortable" data-sort="name">
+                  Ім'я <span class="sort-indicator"></span>
+                </th>
+                <th class="col-cpu sortable active" data-sort="cpu">
+                  ЦП <span class="sort-indicator">▼</span>
+                </th>
+                <th class="col-mem sortable" data-sort="memory">
+                  Пам'ять <span class="sort-indicator"></span>
+                </th>
+                <th class="col-disk sortable" data-sort="disk">
+                  Диск <span class="sort-indicator"></span>
+                </th>
+                <th class="col-action">Дія</th>
+              </tr>
+            </thead>
+            <tbody id="processes-tbody">
+              <!-- Dynamically rendered rows -->
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- TAB 2: PERFORMANCE -->
+      <section id="tab-performance" class="tab-pane">
+        <!-- Metric Selector Horizontal Scroll -->
+        <div class="perf-selector">
+          <div class="perf-card active" data-metric="cpu" id="card-metric-cpu">
+            <div class="perf-card-header">
+              <span class="pcard-title">ЦП</span>
+              <span class="pcard-val" id="pcard-cpu-val">0%</span>
+            </div>
+            <div class="pcard-sub" id="pcard-cpu-sub">0.00 ГГц</div>
+            <canvas class="pcard-mini-canvas" id="mini-canvas-cpu" width="100" height="40"></canvas>
+          </div>
+
+          <div class="perf-card" data-metric="memory" id="card-metric-memory">
+            <div class="perf-card-header">
+              <span class="pcard-title">Пам'ять</span>
+              <span class="pcard-val" id="pcard-mem-val">0%</span>
+            </div>
+            <div class="pcard-sub" id="pcard-mem-sub">0 / 0 ГБ</div>
+            <canvas class="pcard-mini-canvas" id="mini-canvas-memory" width="100" height="40"></canvas>
+          </div>
+
+          <div class="perf-card" data-metric="disk" id="card-metric-disk">
+            <div class="perf-card-header">
+              <span class="pcard-title">Диск</span>
+              <span class="pcard-val" id="pcard-disk-val">0%</span>
+            </div>
+            <div class="pcard-sub" id="pcard-disk-sub">0 МБ/с</div>
+            <canvas class="pcard-mini-canvas" id="mini-canvas-disk" width="100" height="40"></canvas>
+          </div>
+
+          <div class="perf-card" data-metric="network" id="card-metric-network">
+            <div class="perf-card-header">
+              <span class="pcard-title">Мережа</span>
+              <span class="pcard-val" id="pcard-net-val">0 Кбіт/с</span>
+            </div>
+            <div class="pcard-sub" id="pcard-net-sub">Wi-Fi / Ethernet</div>
+            <canvas class="pcard-mini-canvas" id="mini-canvas-network" width="100" height="40"></canvas>
+          </div>
+
+          <div class="perf-card" data-metric="gpu" id="card-metric-gpu">
+            <div class="perf-card-header">
+              <span class="pcard-title">GPU</span>
+              <span class="pcard-val" id="pcard-gpu-val">0%</span>
+            </div>
+            <div class="pcard-sub" id="pcard-gpu-sub">0 °C</div>
+            <canvas class="pcard-mini-canvas" id="mini-canvas-gpu" width="100" height="40"></canvas>
+          </div>
+        </div>
+
+        <!-- Metric Detailed View -->
+        <div class="metric-detail-box">
+          <div class="detail-header">
+            <div>
+              <h2 id="detail-title" class="detail-title">ЦП</h2>
+              <div id="detail-subtitle" class="detail-subtitle">Завантаження ЦП</div>
+            </div>
+            <div class="detail-controls" id="cpu-view-toggle-container">
+              <button id="toggle-cores-btn" class="fluent-btn-outline">
+                <span id="toggle-cores-label">Логічні ядра (16)</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Main 60-Second Chart Canvas -->
+          <div class="chart-container" id="main-chart-wrapper">
+            <canvas id="main-chart-canvas"></canvas>
+            <div class="chart-axis-y">
+              <span>100%</span>
+              <span>50%</span>
+              <span>0%</span>
+            </div>
+            <div class="chart-axis-x">
+              <span>60 сек</span>
+              <span>0</span>
+            </div>
+          </div>
+
+          <!-- Multi-core Grid Canvas (Shown when logical processors toggle is active) -->
+          <div id="cores-grid-container" class="cores-grid" style="display: none;">
+            <!-- Dynamic 16 mini charts generated in JS -->
+          </div>
+
+          <!-- Hardware Specs Grid (Windows 11 Task Manager style) -->
+          <div class="specs-grid" id="specs-grid">
+            <!-- Dynamically populated based on active metric -->
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 3: POWER & ACTIONS -->
+      <section id="tab-power" class="tab-pane">
+        <div class="power-container">
+          <h2 class="section-title">Віддалене керування ПК</h2>
+          <p class="section-desc">Швидкі дії живлення комп'ютера та налаштування частоти оновлення.</p>
+
+          <div class="power-actions-grid">
+            <button class="power-card" data-power="lock">
+              <div class="power-icon">🔒</div>
+              <div class="power-info">
+                <h3>Заблокувати ПК</h3>
+                <p>Заблокувати сеанс Windows (Win + L)</p>
+              </div>
+            </button>
+
+            <button class="power-card" data-power="sleep">
+              <div class="power-icon">🌙</div>
+              <div class="power-info">
+                <h3>Режим сну</h3>
+                <p>Перевести комп'ютер у сплячий режим</p>
+              </div>
+            </button>
+
+            <button class="power-card warning" data-power="restart">
+              <div class="power-icon">🔄</div>
+              <div class="power-info">
+                <h3>Перезавантажити ПК</h3>
+                <p>Перезапуск системи через 5 секунд</p>
+              </div>
+            </button>
+
+            <button class="power-card danger" data-power="shutdown">
+              <div class="power-icon">⏻</div>
+              <div class="power-info">
+                <h3>Вимкнути ПК</h3>
+                <p>Повне завершення роботи комп'ютера</p>
+              </div>
+            </button>
+          </div>
+
+          <div class="settings-card">
+            <h3>Частота оновлення диспетчера</h3>
+            <p>Виберіть інтервал оновлення для економії заряду смартфона:</p>
+            <div class="rate-buttons">
+              <button class="rate-btn" data-rate="0.5">0.5 сек (Швидко)</button>
+              <button class="rate-btn active" data-rate="1.0">1.0 сек (Стандарт)</button>
+              <button class="rate-btn" data-rate="2.0">2.0 сек</button>
+              <button class="rate-btn" data-rate="5.0">5.0 сек (Економія)</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 4: SYSTEM INFO & QR -->
+      <section id="tab-info" class="tab-pane">
+        <div class="info-container">
+          <div class="qr-card">
+            <h2>Підключення з іншого пристрою</h2>
+            <p>Відскануйте QR-код камерою будь-якого смартфона в домашній мережі Wi-Fi:</p>
+            <div class="qr-image-wrapper">
+              <img id="qr-img" src="/api/qr" alt="QR-код підключення">
+            </div>
+            <div class="qr-url-box">
+              <span id="qr-url-text" class="qr-url">http://...</span>
+              <button id="copy-url-btn" class="fluent-btn-primary">Скопіювати</button>
+            </div>
+          </div>
+
+          <div class="install-card">
+            <h3>📱 Як встановити як додаток на Android (PWA):</h3>
+            <ol>
+              <li>Відкрийте це посилання в <b>Google Chrome</b> або <b>Brave</b> на телефоні.</li>
+              <li>Натисніть на меню з трьома крапками <b>(⋮)</b> у правому верхньому кутку.</li>
+              <li>Виберіть пункт <b>«Додати на головний екран»</b> або <b>«Встановити додаток»</b>.</li>
+              <li>Готово! Диспетчер відкриватиметься на весь екран без панелей браузера як рідний додаток.</li>
+            </ol>
+          </div>
+
+          <div class="system-specs-card">
+            <h3>Характеристики комп'ютера</h3>
+            <div id="full-system-specs" class="full-specs-list">
+              <!-- Dynamically populated -->
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- Bottom Navigation Bar (Mobile) -->
+    <nav class="bottom-nav">
+      <button class="nav-item active" data-tab="tab-processes">
+        <svg viewBox="0 0 24 24" class="nav-icon">
+          <path fill="currentColor" d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 14H6v-2h6v2zm4-4H6v-2h10v2zm0-4H6V7h10v2z"/>
+        </svg>
+        <span class="nav-label">Процеси</span>
+      </button>
+
+      <button class="nav-item" data-tab="tab-performance">
+        <svg viewBox="0 0 24 24" class="nav-icon">
+          <path fill="currentColor" d="M3.5 18.5l6-6 4 4L22 6.92 20.59 5.5l-7.09 8-4-4L2 17l1.5 1.5z"/>
+        </svg>
+        <span class="nav-label">Продуктивність</span>
+      </button>
+
+      <button class="nav-item" data-tab="tab-power">
+        <svg viewBox="0 0 24 24" class="nav-icon">
+          <path fill="currentColor" d="M13 3h-2v10h2V3zm4.83 2.17l-1.42 1.42C17.99 7.86 19 9.81 19 12c0 3.87-3.13 7-7 7s-7-3.13-7-7c0-2.19 1.01-4.14 2.58-5.42L6.17 5.17C4.23 6.82 3 9.26 3 12c0 4.97 4.03 9 9 9s9-4.03 9-9c0-2.74-1.23-5.18-3.17-6.83z"/>
+        </svg>
+        <span class="nav-label">Керування</span>
+      </button>
+
+      <button class="nav-item" data-tab="tab-info">
+        <svg viewBox="0 0 24 24" class="nav-icon">
+          <path fill="currentColor" d="M11 7h2v2h-2zm0 4h2v6h-2zm1-9C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/>
+        </svg>
+        <span class="nav-label">Інфо & QR</span>
+      </button>
+    </nav>
+
+    <!-- Process Detail Modal / Bottom Sheet -->
+    <div id="process-modal" class="modal-backdrop" style="display: none;">
+      <div class="modal-sheet">
+        <div class="sheet-handle"></div>
+        <div class="sheet-header">
+          <div>
+            <h3 id="modal-proc-name" class="sheet-title">Process.exe</h3>
+            <span id="modal-proc-pid" class="sheet-subtitle">PID: 1234 • Програма</span>
+          </div>
+          <button id="modal-close-btn" class="sheet-close-btn">✕</button>
+        </div>
+
+        <div class="sheet-metrics-row">
+          <div class="metric-box">
+            <span class="mbox-label">ЦП</span>
+            <span id="modal-proc-cpu" class="mbox-val">0.0%</span>
+          </div>
+          <div class="metric-box">
+            <span class="mbox-label">ОЗП</span>
+            <span id="modal-proc-ram" class="mbox-val">0 МБ</span>
+          </div>
+          <div class="metric-box">
+            <span class="mbox-label">Диск</span>
+            <span id="modal-proc-disk" class="mbox-val">0 МБ/с</span>
+          </div>
+        </div>
+
+        <div class="sheet-details-list">
+          <div class="detail-row">
+            <span class="d-label">Користувач:</span>
+            <span id="modal-proc-user" class="d-val">-</span>
+          </div>
+          <div class="detail-row">
+            <span class="d-label">Стан:</span>
+            <span id="modal-proc-status" class="d-val">-</span>
+          </div>
+          <div class="detail-row">
+            <span class="d-label">Шлях:</span>
+            <span id="modal-proc-exe" class="d-val exe-path">-</span>
+          </div>
+        </div>
+
+        <div class="sheet-actions">
+          <button id="modal-kill-btn" class="fluent-btn-danger">
+            Зняти завдання
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Power Confirmation Modal -->
+    <div id="confirm-modal" class="modal-backdrop" style="display: none;">
+      <div class="confirm-dialog">
+        <h3 id="confirm-title">Підтвердження</h3>
+        <p id="confirm-desc">Ви впевнені, що хочете виконати цю дію?</p>
+        <div class="confirm-buttons">
+          <button id="confirm-cancel-btn" class="fluent-btn-secondary">Скасувати</button>
+          <button id="confirm-ok-btn" class="fluent-btn-danger">Підтвердити</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fluent-toast" style="display: none;">
+      <span id="toast-message">Повідомлення</span>
+    </div>
+
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>
