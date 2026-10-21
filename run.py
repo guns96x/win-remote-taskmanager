@@ -3,12 +3,25 @@ Windows Task Manager for Android - Server Runner (TAILSCALE ONLY).
 Binds exclusively to the Tailscale IPv4 interface for private, encrypted remote access.
 """
 
+import os
 import sys
 import subprocess
 import webbrowser
 import psutil
 import qrcode
 import uvicorn
+
+# Redirect streams for pythonw.exe or silent background runs
+if sys.stdout is None:
+    try:
+        sys.stdout = open(os.path.join(os.path.dirname(__file__), "server.log"), "a", encoding="utf-8")
+    except Exception:
+        sys.stdout = open(os.devnull, "w", encoding="utf-8")
+if sys.stderr is None:
+    try:
+        sys.stderr = open(os.path.join(os.path.dirname(__file__), "server.log"), "a", encoding="utf-8")
+    except Exception:
+        sys.stderr = open(os.devnull, "w", encoding="utf-8")
 
 def get_tailscale_ip() -> str:
     """Finds active Tailscale IPv4 address (100.x.y.z)."""
@@ -77,12 +90,14 @@ def main():
     if "--open" in sys.argv:
         webbrowser.open(f"http://{ts_ip}:{port}")
 
-    # Bind strictly to the Tailscale interface IP
+    # Bind to 0.0.0.0 to accept traffic from Tailscale (100.x) and local network
+    # Use log_config=None to prevent uvicorn DefaultFormatter crashing in pythonw.exe
     uvicorn.run(
         "server.app:app",
-        host=ts_ip,
+        host="0.0.0.0",
         port=port,
         log_level="warning",
+        log_config=None,
         access_log=False
     )
 
