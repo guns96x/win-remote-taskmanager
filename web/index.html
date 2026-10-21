@@ -57,8 +57,12 @@
         <span class="chip-label">Мережа</span>
         <span class="chip-val" id="summary-net">0 Кбіт/с</span>
       </div>
+      <div class="summary-chip" id="chip-igpu">
+        <span class="chip-label">Iris Xe</span>
+        <span class="chip-val" id="summary-igpu">0%</span>
+      </div>
       <div class="summary-chip" id="chip-gpu">
-        <span class="chip-label">GPU</span>
+        <span class="chip-label">RTX 3050</span>
         <span class="chip-val" id="summary-gpu">0%</span>
       </div>
       <div class="summary-chip asus-chip" id="chip-asus">
@@ -158,6 +162,14 @@
             <canvas class="pcard-mini-canvas" id="mini-canvas-network" width="100" height="40"></canvas>
           </div>
 
+          <div class="perf-card" data-metric="igpu" id="card-metric-igpu">
+            <div class="perf-card-header">
+              <span class="pcard-title">Iris Xe</span>
+              <span class="pcard-val" id="pcard-igpu-val">0%</span>
+            </div>
+            <div class="pcard-sub" id="pcard-igpu-sub">0 °C • iGPU</div>
+            <canvas class="pcard-mini-canvas" id="mini-canvas-igpu" width="100" height="40"></canvas>
+          </div>
           <div class="perf-card" data-metric="gpu" id="card-metric-gpu">
             <div class="perf-card-header">
               <span class="pcard-title">RTX 3050</span>
@@ -247,6 +259,27 @@
                   <div class="mode-btn-sub">Turbo • Макс. швидкість</div>
                 </div>
               </button>
+            </div>
+          </div>
+
+          <!-- ASUS Profiles Auto-Schedule -->
+          <div class="asus-section-card" id="schedules-card">
+            <div class="card-section-header">
+              <div class="header-badge-row">
+                <span class="asus-badge">АВТОМАТИЗАЦІЯ</span>
+                <span id="sched-status-pill" class="status-pill screen-on">⏱️ Розклад активний</span>
+              </div>
+              <h2 class="card-title">Розклад режимів (Тихий / Турбо)</h2>
+              <p class="card-desc">Автоматичне перемикання у Тихий режим вночі та Турбо/Баланс вдень.</p>
+            </div>
+
+            <div id="schedule-rules-list" class="schedule-rules-list" style="display:flex; flex-direction:column; gap:8px; margin: 12px 0;">
+              <!-- Populated dynamically -->
+            </div>
+
+            <div class="schedule-actions-row" style="display:flex; gap:12px; margin-top:16px;">
+              <button id="add-schedule-btn" class="fluent-btn-outline" style="border-color: #0078d4; color: #60cdff;">➕ Додати розклад</button>
+              <button id="toggle-schedules-btn" class="fluent-btn-outline">Увімк/Вимк розклад</button>
             </div>
           </div>
 

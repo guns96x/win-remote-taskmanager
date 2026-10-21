@@ -70,6 +70,7 @@ class MetricsCollector:
         self.net_in_history = deque([0.0] * history_length, maxlen=history_length)
         self.net_out_history = deque([0.0] * history_length, maxlen=history_length)
         self.gpu_history = deque([0.0] * history_length, maxlen=history_length)
+        self.igpu_history = deque([0.0] * history_length, maxlen=history_length)
 
         # Baseline IO counters
         self._last_disk_io = psutil.disk_io_counters()
@@ -171,9 +172,10 @@ class MetricsCollector:
         # 5. ASUS Hardware (CPU Temp, Fans, Perf Mode)
         asus_status = self.asus_hw.get_hardware_status()
 
-        # 6. GPU
+        # 6. GPUs: NVIDIA dGPU + Intel Iris Xe iGPU
         gpu_info = self.gpu_collector.get_gpu_metrics() or {
             "name": "NVIDIA GeForce RTX 3050 Laptop GPU",
+            "type": "discrete",
             "load": 0.0,
             "memory_used_mb": 0.0,
             "memory_total_mb": 4096.0,
@@ -183,6 +185,8 @@ class MetricsCollector:
             "available": True
         }
         gpu_info["fan_rpm"] = asus_status["gpu_fan_rpm"]
+
+        igpu_info = self.gpu_collector.get_igpu_metrics(cpu_temp_c=asus_status["cpu_temp_c"])
 
         # 7. Uptime & Counts
         uptime_sec = int(now - self.boot_time)
@@ -197,6 +201,7 @@ class MetricsCollector:
             self.net_in_history.append(kbps_recv)
             self.net_out_history.append(kbps_sent)
             self.gpu_history.append(gpu_info.get("load", 0.0))
+            self.igpu_history.append(igpu_info.get("load", 0.0))
 
             self.latest_snapshot = {
                 "timestamp": now,
@@ -235,6 +240,8 @@ class MetricsCollector:
                     "hostname": self.hostname
                 },
                 "gpu": gpu_info,
+                "igpu": igpu_info,
+                "gpus": [igpu_info, gpu_info],
                 "asus": asus_status,
                 "history": {
                     "cpu": list(self.cpu_history),
@@ -244,7 +251,8 @@ class MetricsCollector:
                     "disk_write": list(self.disk_write_history),
                     "net_in": list(self.net_in_history),
                     "net_out": list(self.net_out_history),
-                    "gpu": list(self.gpu_history)
+                    "gpu": list(self.gpu_history),
+                    "igpu": list(self.igpu_history)
                 }
             }
 

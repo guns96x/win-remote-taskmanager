@@ -1,0 +1,41 @@
+{
+  "enabled": true,
+  "rules": [
+    {
+      "id": "night-silent",
+      "name": "Нічний тихий режим",
+      "enabled": true,
+      "time": "23:00",
+      "mode": 2,
+      "mode_name": "Тихий (Silent)",
+      "keyboard_level": 0,
+      "days": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ]
+    },
+    {
+      "id": "day-turbo",
+      "name": "Денний турбо режим",
+      "enabled": true,
+      "time": "09:00",
+      "mode": 1,
+      "mode_name": "Турбо (Turbo)",
+      "keyboard_level": 2,
+      "days": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ]
+    }
+  ]
+}

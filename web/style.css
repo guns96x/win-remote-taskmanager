@@ -1368,6 +1368,34 @@ html, body {
 }
 
 /* MODAL / BOTTOM SHEET */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(6px);
+  z-index: 999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.modal-box {
+  width: 100%;
+  max-width: 380px;
+  background: #1e1e1e;
+  border: 1px solid #333;
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 12px 32px rgba(0,0,0,0.6);
+  animation: pop-in 0.15s ease-out;
+}
+
+@keyframes pop-in {
+  from { transform: scale(0.95); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
 .modal-backdrop {
   position: fixed;
   inset: 0;

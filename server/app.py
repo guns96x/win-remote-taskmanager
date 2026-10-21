@@ -18,11 +18,13 @@ from pydantic import BaseModel
 from .collector import MetricsCollector
 from .process_manager import ProcessManager
 from .power_manager import lock_workstation, sleep_pc, restart_pc, shutdown_pc, cancel_shutdown
+from .scheduler import AsusScheduler
 
 WEB_DIR = Path(__file__).resolve().parent.parent / "web"
 
 collector = MetricsCollector(history_length=60, interval=1.0)
 process_mgr = ProcessManager(update_interval=1.5)
+asus_scheduler = AsusScheduler(collector.asus_hw)
 SERVER_PORT = 8899
 
 
@@ -30,9 +32,11 @@ SERVER_PORT = 8899
 async def lifespan(app: FastAPI):
     collector.start()
     process_mgr.start()
+    asus_scheduler.start()
     yield
     collector.stop()
     process_mgr.stop()
+    asus_scheduler.stop()
 
 
 app = FastAPI(title="Windows Task Manager Remote", lifespan=lifespan)
@@ -62,6 +66,25 @@ class AsusKeyboardRequest(BaseModel):
     level: int
 
 
+def get_primary_mac() -> str:
+    """Finds physical Realtek/Intel Ethernet MAC address for Wake-on-LAN."""
+    try:
+        import psutil
+        for iface, addrs in psutil.net_if_addrs().items():
+            iface_low = iface.lower()
+            if any(v in iface_low for v in ['vethernet', 'vmnet', 'virtual', 'wsl', 'loopback', 'bluetooth']):
+                continue
+            if 'ethernet' in iface_low or 'eth' in iface_low:
+                for addr in addrs:
+                    if getattr(addr, 'family', None) in (psutil.AF_LINK, -1) and addr.address:
+                        mac = addr.address.replace('-', ':').upper()
+                        if len(mac) == 17 and not mac.startswith('00:00'):
+                            return mac
+    except Exception:
+        pass
+    return "E8:9C:25:4C:4C:CA"
+
+
 @app.get("/api/system")
 def get_system_info():
     snap = collector.get_snapshot()
@@ -69,6 +92,9 @@ def get_system_info():
         "hostname": collector.hostname,
         "local_ip": collector.tailscale_ip,
         "tailscale_ip": collector.tailscale_ip,
+        "mac_address": get_primary_mac(),
+        "mikrotik_tailscale_ip": "100.95.32.60",
+        "mikrotik_lan_ip": "192.168.80.1",
         "port": SERVER_PORT,
         "url": f"http://{collector.tailscale_ip}:{SERVER_PORT}",
         "cpu": snap["cpu"],
@@ -165,6 +191,43 @@ def handle_asus_screen(action: str):
     elif action == "toggle":
         return collector.asus_hw.toggle_screen()
     raise HTTPException(status_code=400, detail=f"Невідома дія екрана: {action}")
+
+
+class ScheduleRuleRequest(BaseModel):
+    id: Optional[str] = None
+    name: str = "Розклад"
+    time: str = "23:00"
+    mode: int = 2
+    enabled: bool = True
+    keyboard_level: Optional[int] = 0
+    days: Optional[list[int]] = [0, 1, 2, 3, 4, 5, 6]
+
+
+class ScheduleToggleRequest(BaseModel):
+    enabled: bool
+
+
+@app.get("/api/asus/schedules")
+def get_asus_schedules():
+    return asus_scheduler.get_status()
+
+
+@app.post("/api/asus/schedules")
+def add_or_update_schedule(rule: ScheduleRuleRequest):
+    asus_scheduler.add_or_update_rule(rule.dict())
+    return asus_scheduler.get_status()
+
+
+@app.post("/api/asus/schedules/toggle")
+def toggle_schedules(req: ScheduleToggleRequest):
+    asus_scheduler.set_enabled(req.enabled)
+    return asus_scheduler.get_status()
+
+
+@app.delete("/api/asus/schedules/{rule_id}")
+def delete_schedule(rule_id: str):
+    asus_scheduler.delete_rule(rule_id)
+    return asus_scheduler.get_status()
 
 
 @app.post("/api/asus/hibernate")

@@ -29,6 +29,7 @@ const elements = {
   summaryRam: document.getElementById('summary-ram'),
   summaryDisk: document.getElementById('summary-disk'),
   summaryNet: document.getElementById('summary-net'),
+  summaryIgpu: document.getElementById('summary-igpu'),
   summaryGpu: document.getElementById('summary-gpu'),
   summaryAsusMode: document.getElementById('summary-asus-mode'),
   chipAsus: document.getElementById('chip-asus'),
@@ -286,6 +287,9 @@ function updateSummaryStrip() {
   elements.summaryRam.textContent = `${Math.round(m.memory.percent)}%`;
   elements.summaryDisk.textContent = `${(m.disk.read_speed_mb + m.disk.write_speed_mb).toFixed(1)} МБ/с`;
   elements.summaryNet.textContent = `${m.network.kbps_recv > 1024 ? (m.network.mbps_recv).toFixed(1) + ' Мбіт/с' : Math.round(m.network.kbps_recv) + ' Кбіт/с'}`;
+  if (elements.summaryIgpu && m.igpu) {
+    elements.summaryIgpu.textContent = `${Math.round(m.igpu.load || 0)}% • ${m.igpu.temp_c || m.cpu.temp_c || 0}°C`;
+  }
   elements.summaryGpu.textContent = `${Math.round(m.gpu.load || 0)}% • ${m.gpu.temp_c || 0}°C`;
 }
 
@@ -378,6 +382,12 @@ function renderPerformanceTab() {
   document.getElementById('pcard-net-sub').textContent = `Надісл: ${m.network.mbps_sent.toFixed(1)} Мбіт/с`;
   drawSparkline('mini-canvas-network', hist.net_in, '#ca5010', 5000);
 
+  if (m.igpu && document.getElementById('pcard-igpu-val')) {
+    document.getElementById('pcard-igpu-val').textContent = `${Math.round(m.igpu.load || 0)}%`;
+    document.getElementById('pcard-igpu-sub').textContent = `${m.igpu.temp_c || m.cpu.temp_c || 0} °C • Iris Xe`;
+    drawSparkline('mini-canvas-igpu', hist.igpu || [0], '#0078d4', 100);
+  }
+
   document.getElementById('pcard-gpu-val').textContent = `${Math.round(m.gpu.load || 0)}%`;
   document.getElementById('pcard-gpu-sub').textContent = `${m.gpu.temp_c || 0} °C • ${m.gpu.fan_rpm ? m.gpu.fan_rpm + ' RPM' : 'RTX 3050'}`;
   drawSparkline('mini-canvas-gpu', hist.gpu, '#76b900', 100);
@@ -435,6 +445,15 @@ function renderActiveMetricDetail() {
     drawMainChart(m.history.net_in, '#ca5010', maxVal, ' Кбіт/с');
     renderNetworkSpecs(m);
 
+  } else if (metric === 'igpu') {
+    elements.mainChartWrapper.style.display = 'block';
+    elements.coresGridContainer.style.display = 'none';
+    const igpu = m.igpu || { load: 0, temp_c: m.cpu.temp_c || 0, name: 'Intel(R) Iris(R) Xe Graphics' };
+    elements.detailTitle.textContent = `${Math.round(igpu.load || 0)}%`;
+    elements.detailSubtitle.textContent = `${igpu.name || 'Intel Iris Xe'} • ${igpu.temp_c || m.cpu.temp_c || 0} °C`;
+    drawMainChart(m.history.igpu || [0], '#0078d4', 100, '%');
+    renderIgpuSpecs(m);
+
   } else if (metric === 'gpu') {
     elements.mainChartWrapper.style.display = 'block';
     elements.coresGridContainer.style.display = 'none';
@@ -446,6 +465,17 @@ function renderActiveMetricDetail() {
 }
 
 // Specs Renderers
+function renderIgpuSpecs(m) {
+  const g = m.igpu || {};
+  elements.specsGrid.innerHTML = `
+    <div class="spec-item"><span class="spec-label">Модель GPU</span><span class="spec-val" style="color:#0078d4;">${g.name || 'Intel(R) Iris(R) Xe Graphics'}</span></div>
+    <div class="spec-item"><span class="spec-label">Температура кристалу</span><span class="spec-val" style="color:#ff7849;">${g.temp_c || m.cpu.temp_c || 0} °C</span></div>
+    <div class="spec-item"><span class="spec-label">Тип GPU</span><span class="spec-val">Інтегрована графіка (iGPU)</span></div>
+    <div class="spec-item"><span class="spec-label">Навантаження 3D</span><span class="spec-val">${g.load ? g.load.toFixed(0) : '0'}%</span></div>
+    <div class="spec-item"><span class="spec-label">Спільна пам'ять ОЗП</span><span class="spec-val">${g.memory_used_mb ? g.memory_used_mb.toFixed(0) : 0} МБ / 16.0 ГБ</span></div>
+    <div class="spec-item"><span class="spec-label">Версія драйвера</span><span class="spec-val">${g.driver || '32.0.101.6790'}</span></div>
+  `;
+}
 function renderCpuSpecs(m) {
   const uptime = formatUptime(m.cpu.uptime_sec);
   elements.specsGrid.innerHTML = `
@@ -800,6 +830,10 @@ function setupEventListeners() {
 
       sendClientConfig();
       updateAll();
+
+      if (targetTab === 'tab-power') {
+        loadSchedules();
+      }
     });
   });
 
@@ -981,6 +1015,10 @@ function setupEventListeners() {
       state.activeTab = 'tab-power';
       sendClientConfig();
       updateAll();
+
+      if (targetTab === 'tab-power') {
+        loadSchedules();
+      }
     });
   }
 
@@ -1048,8 +1086,142 @@ window.__handleAndroidBack = function() {
   return false;
 };
 
+// Schedules Feature
+let schedulesData = { enabled: true, rules: [] };
+
+async function loadSchedules() {
+  try {
+    const res = await fetch('/api/asus/schedules');
+    if (res.ok) {
+      schedulesData = await res.json();
+      renderSchedulesUI(schedulesData);
+    }
+  } catch (e) {
+    console.error('Failed to load schedules:', e);
+  }
+}
+
+function renderSchedulesUI(data) {
+  const container = document.getElementById('schedule-rules-list');
+  const pill = document.getElementById('sched-status-pill');
+  if (pill) {
+    pill.className = data.enabled ? 'status-pill screen-on' : 'status-pill battery-only';
+    pill.textContent = data.enabled ? '⏱️ Розклад активний' : '⏸️ Розклад вимкнено';
+  }
+
+  if (!container) return;
+  if (!data.rules || data.rules.length === 0) {
+    container.innerHTML = '<div style="color:#888; font-size:13px; padding:8px 0;">Немає активних правил розкладу.</div>';
+    return;
+  }
+
+  const icons = { 0: '⚖️', 1: '🚀', 2: '🌿' };
+  container.innerHTML = data.rules.map(r => `
+    <div class="sched-rule-row" style="display:flex; justify-content:space-between; align-items:center; background:#1e1e1e; padding:10px 14px; border-radius:6px; border-left: 3px solid ${r.mode === 2 ? '#107c41' : (r.mode === 1 ? '#0078d4' : '#60cdff')};">
+      <div>
+        <div style="font-weight:600; font-size:14px; color:#fff;">
+          <span style="font-size:16px; margin-right:6px;">${icons[r.mode] || '⚙️'}</span>
+          <span style="color:#60cdff;">${r.time}</span> • ${escapeHtml(r.name)}
+        </div>
+        <div style="font-size:12px; color:#888; margin-top:2px;">
+          Режим: <b>${escapeHtml(r.mode_name || '')}</b> • Підсвітка: ${r.keyboard_level !== undefined ? r.keyboard_level : 'авто'}
+        </div>
+      </div>
+      <button class="delete-sched-btn" data-id="${r.id}" style="background:transparent; border:none; color:#ff5555; cursor:pointer; font-size:16px; padding:4px 8px;">🗑️</button>
+    </div>
+  `).join('');
+
+  container.querySelectorAll('.delete-sched-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const id = btn.getAttribute('data-id');
+      try {
+        await fetch(`/api/asus/schedules/${id}`, { method: 'DELETE' });
+        showToast('Правило видалено');
+        loadSchedules();
+      } catch (_) {}
+    });
+  });
+}
+
+function setupScheduleListeners() {
+  const modal = document.getElementById('schedule-modal');
+  const addBtn = document.getElementById('add-schedule-btn');
+  const closeBtn = document.getElementById('sched-modal-close');
+  const saveBtn = document.getElementById('sched-save-btn');
+  const toggleBtn = document.getElementById('toggle-schedules-btn');
+
+  if (addBtn && modal) {
+    addBtn.addEventListener('click', () => {
+      modal.style.display = 'flex';
+    });
+  }
+
+  if (closeBtn && modal) {
+    closeBtn.addEventListener('click', () => {
+      modal.style.display = 'none';
+    });
+  }
+
+  if (modal) {
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) modal.style.display = 'none';
+    });
+  }
+
+  if (saveBtn) {
+    saveBtn.addEventListener('click', async () => {
+      const name = document.getElementById('sched-name-input').value.trim() || 'Розклад';
+      const time = document.getElementById('sched-time-input').value.trim() || '23:00';
+      const mode = parseInt(document.getElementById('sched-mode-select').value, 10);
+      const kbd = parseInt(document.getElementById('sched-kbd-select').value, 10);
+
+      try {
+        const res = await fetch('/api/asus/schedules', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: name,
+            time: time,
+            mode: mode,
+            keyboard_level: kbd,
+            enabled: true
+          })
+        });
+        if (res.ok) {
+          showToast(`Правило збережено: ${time} (${mode === 2 ? 'Тихий' : (mode === 1 ? 'Турбо' : 'Баланс')})`);
+          if (modal) modal.style.display = 'none';
+          loadSchedules();
+        }
+      } catch (e) {
+        showToast('Помилка збереження');
+      }
+    });
+  }
+
+  if (toggleBtn) {
+    toggleBtn.addEventListener('click', async () => {
+      const newState = !schedulesData.enabled;
+      try {
+        const res = await fetch('/api/asus/schedules/toggle', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ enabled: newState })
+        });
+        if (res.ok) {
+          schedulesData = await res.json();
+          renderSchedulesUI(schedulesData);
+          showToast(newState ? 'Розклад увімкнено' : 'Розклад вимкнено');
+        }
+      } catch (_) {}
+    });
+  }
+}
+
 // Start Application
 document.addEventListener('DOMContentLoaded', () => {
   setupEventListeners();
+  setupScheduleListeners();
   connectWebSocket();
+  loadSchedules();
 });
