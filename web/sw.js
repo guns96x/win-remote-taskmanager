@@ -1,4 +1,4 @@
-const CACHE_NAME = 'win-taskmgr-v2';
+const CACHE_NAME = 'win-taskmgr-v3';
 const ASSETS = [
   '/',
   '/index.html',

@@ -1022,6 +1022,32 @@ if ('serviceWorker' in navigator) {
   });
 }
 
+// Native Android Back Navigation Bridge
+window.__handleAndroidBack = function() {
+  if (elements.processModal && elements.processModal.style.display !== 'none') {
+    closeProcessModal();
+    return true;
+  }
+  if (elements.confirmModal && elements.confirmModal.style.display !== 'none') {
+    elements.confirmModal.style.display = 'none';
+    return true;
+  }
+  if (state.activeTab !== 'tab-processes') {
+    const procNav = document.querySelector('.nav-item[data-tab="tab-processes"]');
+    if (procNav) {
+      document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+      procNav.classList.add('active');
+      document.getElementById('tab-processes').classList.add('active');
+      state.activeTab = 'tab-processes';
+      sendClientConfig();
+      updateAll();
+      return true;
+    }
+  }
+  return false;
+};
+
 // Start Application
 document.addEventListener('DOMContentLoaded', () => {
   setupEventListeners();

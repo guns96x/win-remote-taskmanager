@@ -172,16 +172,17 @@ def handle_asus_hibernate():
     return collector.asus_hw.hibernate_pc()
 
 
+@app.get("/TaskMgr.apk")
 @app.get("/app.apk")
 @app.get("/AsusControl.apk")
 def download_app_apk():
-    for p in [Path("D:/asus-pc-control/AsusControl.apk"), Path("D:/asus-pc-control/pc-agent/AsusControl.apk")]:
-        if p.exists():
-            return FileResponse(
-                str(p),
-                media_type="application/vnd.android.package-archive",
-                filename="AsusControl.apk"
-            )
+    apk_path = WEB_DIR / "TaskMgr.apk"
+    if apk_path.exists():
+        return FileResponse(
+            str(apk_path),
+            media_type="application/vnd.android.package-archive",
+            filename="TaskMgr.apk"
+        )
     raise HTTPException(status_code=404, detail="APK ще компілюється або не знайдено")
 
 
