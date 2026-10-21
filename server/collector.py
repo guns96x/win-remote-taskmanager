@@ -11,6 +11,7 @@ from typing import Dict, Any, List
 import psutil
 
 from .gpu_collector import GPUCollector
+from .asus_hw import AsusHardware
 
 
 def get_cpu_brand_name() -> str:
@@ -51,6 +52,7 @@ class MetricsCollector:
         self.history_length = history_length
         self.interval = interval
         self.gpu_collector = GPUCollector()
+        self.asus_hw = AsusHardware()
 
         self.cpu_name = get_cpu_brand_name()
         self.cores_physical = psutil.cpu_count(logical=False) or 1
@@ -61,6 +63,7 @@ class MetricsCollector:
 
         # Rolling buffers (60 points)
         self.cpu_history = deque([0.0] * history_length, maxlen=history_length)
+        self.cpu_temp_history = deque([0.0] * history_length, maxlen=history_length)
         self.memory_history = deque([0.0] * history_length, maxlen=history_length)
         self.disk_read_history = deque([0.0] * history_length, maxlen=history_length)
         self.disk_write_history = deque([0.0] * history_length, maxlen=history_length)
@@ -165,24 +168,29 @@ class MetricsCollector:
             kbps_sent = round(max(0.0, (sent_bytes_delta * 8) / dt / 1024), 1)
         self._last_net_io = cur_net_io
 
-        # 5. GPU
+        # 5. ASUS Hardware (CPU Temp, Fans, Perf Mode)
+        asus_status = self.asus_hw.get_hardware_status()
+
+        # 6. GPU
         gpu_info = self.gpu_collector.get_gpu_metrics() or {
-            "name": "GPU",
+            "name": "NVIDIA GeForce RTX 3050 Laptop GPU",
             "load": 0.0,
             "memory_used_mb": 0.0,
-            "memory_total_mb": 0.0,
+            "memory_total_mb": 4096.0,
             "memory_percent": 0.0,
             "temp_c": 0.0,
             "driver": "N/A",
-            "available": False
+            "available": True
         }
+        gpu_info["fan_rpm"] = asus_status["gpu_fan_rpm"]
 
-        # 6. Uptime & Counts
+        # 7. Uptime & Counts
         uptime_sec = int(now - self.boot_time)
         pids_count = len(psutil.pids())
 
         with self._lock:
             self.cpu_history.append(cpu_total)
+            self.cpu_temp_history.append(asus_status["cpu_temp_c"])
             self.memory_history.append(ram_percent)
             self.disk_read_history.append(disk_read_speed_mb)
             self.disk_write_history.append(disk_write_speed_mb)
@@ -199,6 +207,9 @@ class MetricsCollector:
                     "cores_physical": self.cores_physical,
                     "cores_logical": self.cores_logical,
                     "freq_ghz": cur_freq_ghz,
+                    "temp_c": asus_status["cpu_temp_c"],
+                    "fan_rpm": asus_status["cpu_fan_rpm"],
+                    "perf_mode": asus_status["perf_mode_name"],
                     "uptime_sec": uptime_sec,
                     "processes_count": pids_count,
                     "threads_count": self.external_threads_count or (pids_count * 15),
@@ -226,6 +237,7 @@ class MetricsCollector:
                 "gpu": gpu_info,
                 "history": {
                     "cpu": list(self.cpu_history),
+                    "cpu_temp": list(self.cpu_temp_history),
                     "memory": list(self.memory_history),
                     "disk_read": list(self.disk_read_history),
                     "disk_write": list(self.disk_write_history),

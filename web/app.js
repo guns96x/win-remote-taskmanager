@@ -165,11 +165,11 @@ function updateAll() {
 function updateSummaryStrip() {
   if (!state.metrics) return;
   const m = state.metrics;
-  elements.summaryCpu.textContent = `${Math.round(m.cpu.total)}%`;
+  elements.summaryCpu.textContent = `${Math.round(m.cpu.total)}% ${m.cpu.temp_c ? '• ' + m.cpu.temp_c + '°C' : ''}`;
   elements.summaryRam.textContent = `${Math.round(m.memory.percent)}%`;
   elements.summaryDisk.textContent = `${(m.disk.read_speed_mb + m.disk.write_speed_mb).toFixed(1)} МБ/с`;
   elements.summaryNet.textContent = `${m.network.kbps_recv > 1024 ? (m.network.mbps_recv).toFixed(1) + ' Мбіт/с' : Math.round(m.network.kbps_recv) + ' Кбіт/с'}`;
-  elements.summaryGpu.textContent = `${Math.round(m.gpu.load || 0)}%`;
+  elements.summaryGpu.textContent = `${Math.round(m.gpu.load || 0)}% • ${m.gpu.temp_c || 0}°C`;
 }
 
 // Processes Tab Rendering
@@ -245,7 +245,7 @@ function renderPerformanceTab() {
 
   // 1. Update Selector Cards
   document.getElementById('pcard-cpu-val').textContent = `${Math.round(m.cpu.total)}%`;
-  document.getElementById('pcard-cpu-sub').textContent = `${m.cpu.freq_ghz.toFixed(2)} ГГц`;
+  document.getElementById('pcard-cpu-sub').textContent = `${m.cpu.temp_c ? m.cpu.temp_c + '°C • ' : ''}${m.cpu.freq_ghz.toFixed(2)} ГГц`;
   drawSparkline('mini-canvas-cpu', hist.cpu, '#0078d4', 100);
 
   document.getElementById('pcard-mem-val').textContent = `${Math.round(m.memory.percent)}%`;
@@ -262,7 +262,7 @@ function renderPerformanceTab() {
   drawSparkline('mini-canvas-network', hist.net_in, '#ca5010', 5000);
 
   document.getElementById('pcard-gpu-val').textContent = `${Math.round(m.gpu.load || 0)}%`;
-  document.getElementById('pcard-gpu-sub').textContent = `${m.gpu.temp_c || 0} °C`;
+  document.getElementById('pcard-gpu-sub').textContent = `${m.gpu.temp_c || 0} °C • ${m.gpu.fan_rpm ? m.gpu.fan_rpm + ' RPM' : 'RTX 3050'}`;
   drawSparkline('mini-canvas-gpu', hist.gpu, '#76b900', 100);
 
   // 2. Render Main Detail View
@@ -332,6 +332,9 @@ function renderActiveMetricDetail() {
 function renderCpuSpecs(m) {
   const uptime = formatUptime(m.cpu.uptime_sec);
   elements.specsGrid.innerHTML = `
+    <div class="spec-item"><span class="spec-label">Температура ЦП</span><span class="spec-val" style="color: #ff7849;">${m.cpu.temp_c || 0} °C</span></div>
+    <div class="spec-item"><span class="spec-label">Кулер ЦП</span><span class="spec-val">${m.cpu.fan_rpm || 0} RPM</span></div>
+    <div class="spec-item"><span class="spec-label">Режим ASUS</span><span class="spec-val" style="color: #60cdff;">${m.cpu.perf_mode || 'Баланс'}</span></div>
     <div class="spec-item"><span class="spec-label">Швидкість</span><span class="spec-val">${m.cpu.freq_ghz.toFixed(2)} ГГц</span></div>
     <div class="spec-item"><span class="spec-label">Процеси</span><span class="spec-val">${m.cpu.processes_count}</span></div>
     <div class="spec-item"><span class="spec-label">Потоки</span><span class="spec-val">${m.cpu.threads_count || '-'}</span></div>
@@ -339,7 +342,6 @@ function renderCpuSpecs(m) {
     <div class="spec-item"><span class="spec-label">Час роботи</span><span class="spec-val">${uptime}</span></div>
     <div class="spec-item"><span class="spec-label">Логічні ядра</span><span class="spec-val">${m.cpu.cores_logical}</span></div>
     <div class="spec-item"><span class="spec-label">Фізичні ядра</span><span class="spec-val">${m.cpu.cores_physical}</span></div>
-    <div class="spec-item"><span class="spec-label">Архітектура</span><span class="spec-val">x64 Family</span></div>
   `;
 }
 
@@ -383,10 +385,11 @@ function renderNetworkSpecs(m) {
 function renderGpuSpecs(m) {
   const g = m.gpu;
   elements.specsGrid.innerHTML = `
-    <div class="spec-item"><span class="spec-label">Модель GPU</span><span class="spec-val">${g.name || 'N/A'}</span></div>
+    <div class="spec-item"><span class="spec-label">Модель GPU</span><span class="spec-val" style="color:#60cdff;">${g.name || 'NVIDIA GeForce RTX 3050 Laptop GPU'}</span></div>
+    <div class="spec-item"><span class="spec-label">Температура GPU</span><span class="spec-val" style="color:#76b900;">${g.temp_c || 0} °C</span></div>
+    <div class="spec-item"><span class="spec-label">Кулер GPU</span><span class="spec-val">${g.fan_rpm || 0} RPM</span></div>
     <div class="spec-item"><span class="spec-label">Навантаження 3D</span><span class="spec-val">${g.load ? g.load.toFixed(0) : '0'}%</span></div>
-    <div class="spec-item"><span class="spec-label">Пам'ять GPU</span><span class="spec-val">${g.memory_used_mb ? (g.memory_used_mb / 1024).toFixed(1) : 0} / ${g.memory_total_mb ? (g.memory_total_mb / 1024).toFixed(1) : 0} ГБ</span></div>
-    <div class="spec-item"><span class="spec-label">Температура</span><span class="spec-val">${g.temp_c || 0} °C</span></div>
+    <div class="spec-item"><span class="spec-label">Пам'ять GPU</span><span class="spec-val">${g.memory_used_mb ? (g.memory_used_mb / 1024).toFixed(1) : 0} / ${g.memory_total_mb ? (g.memory_total_mb / 1024).toFixed(1) : 4.0} ГБ</span></div>
     <div class="spec-item"><span class="spec-label">Версія драйвера</span><span class="spec-val">${g.driver || 'N/A'}</span></div>
   `;
 }

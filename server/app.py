@@ -120,6 +120,19 @@ def handle_power(action: str, req: PowerRequest = PowerRequest()):
     raise HTTPException(status_code=400, detail=f"Невідома дія живлення: {action}")
 
 
+@app.get("/app.apk")
+@app.get("/AsusControl.apk")
+def download_app_apk():
+    for p in [Path("D:/asus-pc-control/AsusControl.apk"), Path("D:/asus-pc-control/pc-agent/AsusControl.apk")]:
+        if p.exists():
+            return FileResponse(
+                str(p),
+                media_type="application/vnd.android.package-archive",
+                filename="AsusControl.apk"
+            )
+    raise HTTPException(status_code=404, detail="APK ще компілюється або не знайдено")
+
+
 @app.get("/api/qr")
 def get_qr_code():
     url = f"http://{collector.tailscale_ip}:{SERVER_PORT}"
