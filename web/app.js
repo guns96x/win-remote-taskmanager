@@ -651,13 +651,14 @@ function showConfirmDialog(title, desc, onOk) {
 function renderSystemInfo() {
   if (!state.systemInfo) return;
   const s = state.systemInfo;
-  elements.hostBadge.textContent = s.hostname;
-  const fullUrl = `http://${s.local_ip}:${window.location.port || '8899'}`;
+  elements.hostBadge.textContent = `Tailscale: ${s.tailscale_ip || s.local_ip}`;
+  const fullUrl = `http://${s.tailscale_ip || s.local_ip}:${window.location.port || '8899'}`;
   elements.qrUrlText.textContent = fullUrl;
 
   elements.fullSystemSpecs.innerHTML = `
     <div class="spec-line"><span class="spec-line-k">Комп'ютер</span><span class="spec-line-v">${s.hostname}</span></div>
-    <div class="spec-line"><span class="spec-line-k">Локальна IP</span><span class="spec-line-v">${s.local_ip}</span></div>
+    <div class="spec-line"><span class="spec-line-k">Мережа</span><span class="spec-line-v">Tailscale VPN (Зашифровано)</span></div>
+    <div class="spec-line"><span class="spec-line-k">Tailscale IP</span><span class="spec-line-v">${s.tailscale_ip || s.local_ip}</span></div>
     <div class="spec-line"><span class="spec-line-k">Процесор</span><span class="spec-line-v">${s.cpu_model}</span></div>
     <div class="spec-line"><span class="spec-line-k">Логічні ядра</span><span class="spec-line-v">${s.cores_logical}</span></div>
     <div class="spec-line"><span class="spec-line-k">Фізичні ядра</span><span class="spec-line-v">${s.cores_physical}</span></div>

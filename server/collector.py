@@ -22,15 +22,28 @@ def get_cpu_brand_name() -> str:
         return "Intel / AMD Processor"
 
 
-def get_local_ip() -> str:
+def get_tailscale_ip() -> str:
+    """Finds the Tailscale IPv4 address (100.x.y.z)."""
+    import subprocess
     try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(("8.8.8.8", 80))
-        ip = s.getsockname()[0]
-        s.close()
-        return ip
+        res = subprocess.run(
+            ['tailscale', 'ip', '-4'],
+            capture_output=True,
+            text=True,
+            timeout=2.0,
+            creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0)
+        )
+        if res.returncode == 0 and res.stdout.strip():
+            return res.stdout.strip().splitlines()[0]
     except Exception:
-        return "127.0.0.1"
+        pass
+
+    for iface, addrs in psutil.net_if_addrs().items():
+        if 'tailscale' in iface.lower():
+            for addr in addrs:
+                if addr.family == 2 and addr.address.startswith('100.'):
+                    return addr.address
+    return "127.0.0.1"
 
 
 class MetricsCollector:
@@ -42,7 +55,7 @@ class MetricsCollector:
         self.cpu_name = get_cpu_brand_name()
         self.cores_physical = psutil.cpu_count(logical=False) or 1
         self.cores_logical = psutil.cpu_count(logical=True) or 1
-        self.local_ip = get_local_ip()
+        self.tailscale_ip = get_tailscale_ip()
         self.hostname = socket.gethostname()
         self.boot_time = psutil.boot_time()
 
@@ -207,7 +220,7 @@ class MetricsCollector:
                     "kbps_sent": kbps_sent,
                     "mbps_recv": round(kbps_recv / 1024, 2),
                     "mbps_sent": round(kbps_sent / 1024, 2),
-                    "ip": self.local_ip,
+                    "ip": self.tailscale_ip,
                     "hostname": self.hostname
                 },
                 "gpu": gpu_info,

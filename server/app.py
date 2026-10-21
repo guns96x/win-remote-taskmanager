@@ -59,9 +59,10 @@ def get_system_info():
     snap = collector.get_snapshot()
     return {
         "hostname": collector.hostname,
-        "local_ip": collector.local_ip,
+        "local_ip": collector.tailscale_ip,
+        "tailscale_ip": collector.tailscale_ip,
         "port": SERVER_PORT,
-        "url": f"http://{collector.local_ip}:{SERVER_PORT}",
+        "url": f"http://{collector.tailscale_ip}:{SERVER_PORT}",
         "cpu": snap["cpu"],
         "memory": snap["memory"],
         "gpu": snap["gpu"],
@@ -121,7 +122,7 @@ def handle_power(action: str, req: PowerRequest = PowerRequest()):
 
 @app.get("/api/qr")
 def get_qr_code():
-    url = f"http://{collector.local_ip}:{SERVER_PORT}"
+    url = f"http://{collector.tailscale_ip}:{SERVER_PORT}"
     img = qrcode.make(url)
     buf = io.BytesIO()
     img.save(buf, format="PNG")
@@ -138,7 +139,8 @@ async def websocket_live(websocket: WebSocket):
             "type": "init",
             "system": {
                 "hostname": collector.hostname,
-                "local_ip": collector.local_ip,
+                "local_ip": collector.tailscale_ip,
+                "tailscale_ip": collector.tailscale_ip,
                 "cpu_model": collector.cpu_name,
                 "cores_logical": collector.cores_logical,
                 "cores_physical": collector.cores_physical,
