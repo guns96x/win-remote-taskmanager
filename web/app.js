@@ -1015,12 +1015,41 @@ function setupEventListeners() {
       state.activeTab = 'tab-power';
       sendClientConfig();
       updateAll();
-
-      if (targetTab === 'tab-power') {
-        loadSchedules();
-      }
+      loadSchedules();
     });
   }
+
+  // Quick summary chips click navigation to Performance graphs
+  const chipMetricMap = {
+    'chip-cpu': 'cpu',
+    'chip-ram': 'ram',
+    'chip-disk': 'disk',
+    'chip-net': 'network',
+    'chip-igpu': 'igpu',
+    'chip-gpu': 'gpu'
+  };
+  Object.entries(chipMetricMap).forEach(([chipId, metricKey]) => {
+    const chip = document.getElementById(chipId);
+    if (chip) {
+      chip.style.cursor = 'pointer';
+      chip.addEventListener('click', () => {
+        document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+        const perfNav = document.querySelector('.nav-item[data-tab="tab-performance"]');
+        if (perfNav) perfNav.classList.add('active');
+        const perfTab = document.getElementById('tab-performance');
+        if (perfTab) perfTab.classList.add('active');
+        state.activeTab = 'tab-performance';
+        state.activeMetric = metricKey;
+        document.querySelectorAll('.perf-card').forEach(c => {
+          c.classList.toggle('active', c.getAttribute('data-metric') === metricKey);
+        });
+        sendClientConfig();
+        updateAll();
+        renderActiveMetricDetail();
+      });
+    }
+  });
 
   // Update Rate Buttons
   document.querySelectorAll('.rate-btn').forEach(btn => {
@@ -1051,10 +1080,12 @@ function setupEventListeners() {
   });
 }
 
-// Service Worker Registration for PWA
+// Service Worker Registration for PWA & Cache Eviction
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch(err => {
+    navigator.serviceWorker.register('/sw.js').then(reg => {
+      reg.update();
+    }).catch(err => {
       console.log('SW registration error:', err);
     });
   });
@@ -1062,6 +1093,16 @@ if ('serviceWorker' in navigator) {
 
 // Native Android Back Navigation Bridge
 window.__handleAndroidBack = function() {
+  const schedModal = document.getElementById('schedule-modal');
+  if (schedModal && schedModal.style.display !== 'none') {
+    schedModal.style.display = 'none';
+    return true;
+  }
+  const wolModal = document.getElementById('wol-modal');
+  if (wolModal && wolModal.style.display !== 'none') {
+    wolModal.style.display = 'none';
+    return true;
+  }
   if (elements.processModal && elements.processModal.style.display !== 'none') {
     closeProcessModal();
     return true;
@@ -1218,10 +1259,154 @@ function setupScheduleListeners() {
   }
 }
 
+function setupWolListeners() {
+  const mikrotikBtn = document.getElementById('btn-trigger-mikrotik-wol');
+  const directBtn = document.getElementById('btn-trigger-direct-wol');
+  const settingsBtn = document.getElementById('btn-open-wol-settings');
+  const modal = document.getElementById('wol-modal');
+  const closeBtn = document.getElementById('wol-modal-close');
+  const saveBtn = document.getElementById('wol-save-btn');
+  const macDisplay = document.getElementById('wol-mac-display');
+
+  // Load saved config
+  const saved = JSON.parse(localStorage.getItem('taskmgr_wol_cfg') || '{}');
+  if (saved.mac && document.getElementById('wol-input-mac')) document.getElementById('wol-input-mac').value = saved.mac;
+  if (saved.host && document.getElementById('wol-input-host')) document.getElementById('wol-input-host').value = saved.host;
+  if (saved.port && document.getElementById('wol-input-port')) document.getElementById('wol-input-port').value = saved.port;
+  if (saved.iface && document.getElementById('wol-input-iface')) document.getElementById('wol-input-iface').value = saved.iface;
+  if (saved.user && document.getElementById('wol-input-user')) document.getElementById('wol-input-user').value = saved.user;
+  if (saved.pass && document.getElementById('wol-input-pass')) document.getElementById('wol-input-pass').value = saved.pass;
+  if (saved.https !== undefined && document.getElementById('wol-input-https')) document.getElementById('wol-input-https').checked = saved.https;
+  if (saved.mac && macDisplay) macDisplay.textContent = saved.mac;
+
+  // Sync from native Android bridge if available
+  if (window.AndroidBridge && window.AndroidBridge.getWolConfigJson) {
+    try {
+      const cfg = JSON.parse(window.AndroidBridge.getWolConfigJson());
+      if (cfg.pcMac) {
+        if (document.getElementById('wol-input-mac')) document.getElementById('wol-input-mac').value = cfg.pcMac;
+        if (macDisplay) macDisplay.textContent = cfg.pcMac;
+      }
+      if (cfg.mikrotikHost && document.getElementById('wol-input-host')) document.getElementById('wol-input-host').value = cfg.mikrotikHost;
+      if (cfg.mikrotikPort && document.getElementById('wol-input-port')) document.getElementById('wol-input-port').value = cfg.mikrotikPort;
+      if (cfg.mikrotikInterface && document.getElementById('wol-input-iface')) document.getElementById('wol-input-iface').value = cfg.mikrotikInterface;
+      if (cfg.mikrotikUser && document.getElementById('wol-input-user')) document.getElementById('wol-input-user').value = cfg.mikrotikUser;
+      if (cfg.mikrotikPass && document.getElementById('wol-input-pass')) document.getElementById('wol-input-pass').value = cfg.mikrotikPass;
+      if (cfg.mikrotikUseHttps !== undefined && document.getElementById('wol-input-https')) document.getElementById('wol-input-https').checked = cfg.mikrotikUseHttps;
+    } catch (_) {}
+  }
+
+  if (settingsBtn && modal) {
+    settingsBtn.addEventListener('click', () => {
+      if (window.AndroidBridge && window.AndroidBridge.showWolConfig) {
+        window.AndroidBridge.showWolConfig();
+      } else {
+        modal.style.display = 'flex';
+      }
+    });
+  }
+
+  if (closeBtn && modal) {
+    closeBtn.addEventListener('click', () => {
+      modal.style.display = 'none';
+    });
+  }
+
+  if (modal) {
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) modal.style.display = 'none';
+    });
+  }
+
+  if (saveBtn) {
+    saveBtn.addEventListener('click', () => {
+      const cfg = {
+        mac: document.getElementById('wol-input-mac').value.trim() || 'E8:9C:25:4C:4C:CA',
+        host: document.getElementById('wol-input-host').value.trim() || '100.95.32.60',
+        port: parseInt(document.getElementById('wol-input-port').value, 10) || 80,
+        iface: document.getElementById('wol-input-iface').value.trim() || 'ether3',
+        user: document.getElementById('wol-input-user').value.trim() || 'admin',
+        pass: document.getElementById('wol-input-pass').value || '',
+        https: document.getElementById('wol-input-https').checked
+      };
+      localStorage.setItem('taskmgr_wol_cfg', JSON.stringify(cfg));
+      if (macDisplay) macDisplay.textContent = cfg.mac;
+
+      if (window.AndroidBridge && window.AndroidBridge.saveWolConfigJson) {
+        window.AndroidBridge.saveWolConfigJson(JSON.stringify(cfg));
+      }
+      showToast('Налаштування WOL збережено!');
+      if (modal) modal.style.display = 'none';
+    });
+  }
+
+  // Trigger MikroTik WOL
+  if (mikrotikBtn) {
+    mikrotikBtn.addEventListener('click', async () => {
+      showToast('Відправка WOL сигналу через MikroTik...');
+      if (window.AndroidBridge && window.AndroidBridge.triggerWol) {
+        window.AndroidBridge.triggerWol('mikrotik');
+        return;
+      }
+      const mac = document.getElementById('wol-input-mac') ? document.getElementById('wol-input-mac').value.trim() : 'E8:9C:25:4C:4C:CA';
+      const host = document.getElementById('wol-input-host') ? document.getElementById('wol-input-host').value.trim() : '100.95.32.60';
+      const port = document.getElementById('wol-input-port') ? parseInt(document.getElementById('wol-input-port').value, 10) : 80;
+      const iface = document.getElementById('wol-input-iface') ? document.getElementById('wol-input-iface').value.trim() : 'ether3';
+      const user = document.getElementById('wol-input-user') ? document.getElementById('wol-input-user').value.trim() : 'admin';
+      const pass = document.getElementById('wol-input-pass') ? document.getElementById('wol-input-pass').value : '';
+      const https = document.getElementById('wol-input-https') ? document.getElementById('wol-input-https').checked : false;
+
+      try {
+        const res = await fetch('/api/wol/mikrotik', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mac, host, port, interface: iface, user, password: pass, use_https: https })
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast(`⚡ Сигнал WOL надіслано через MikroTik (${host})!`);
+        } else {
+          showToast(`MikroTik: ${data.error || 'помилка'}`);
+        }
+      } catch (e) {
+        showToast('Помилка надсилання запиту');
+      }
+    });
+  }
+
+  // Trigger Direct UDP WOL
+  if (directBtn) {
+    directBtn.addEventListener('click', async () => {
+      showToast('Відправка прямого Magic Packet UDP...');
+      if (window.AndroidBridge && window.AndroidBridge.triggerWol) {
+        window.AndroidBridge.triggerWol('direct');
+        return;
+      }
+      const mac = document.getElementById('wol-input-mac') ? document.getElementById('wol-input-mac').value.trim() : 'E8:9C:25:4C:4C:CA';
+      try {
+        const res = await fetch('/api/wol/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mac, target_ip: '255.255.255.255', port: 9 })
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast('📡 Прямий сигнал WOL Magic Packet надіслано!');
+        } else {
+          showToast(`Помилка: ${data.detail || 'помилка'}`);
+        }
+      } catch (e) {
+        showToast('Помилка відправки WOL');
+      }
+    });
+  }
+}
+
 // Start Application
 document.addEventListener('DOMContentLoaded', () => {
   setupEventListeners();
   setupScheduleListeners();
+  setupWolListeners();
   connectWebSocket();
   loadSchedules();
 });

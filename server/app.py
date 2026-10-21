@@ -4,12 +4,17 @@ FastAPI application for Remote Windows Task Manager.
 
 import io
 import asyncio
+import socket
+import json
+import base64
+import ssl
+import urllib.request
 from pathlib import Path
 from contextlib import asynccontextmanager
-from typing import Optional
+from typing import Optional, List
 
 import qrcode
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Request
 from fastapi.responses import Response, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -48,6 +53,16 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def add_no_cache_headers(request: Request, call_next):
+    response = await call_next(request)
+    # Never cache dynamic HTML, JS, CSS, or JSON API responses
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    return response
 
 
 class KillRequest(BaseModel):
@@ -100,6 +115,8 @@ def get_system_info():
         "cpu": snap["cpu"],
         "memory": snap["memory"],
         "gpu": snap["gpu"],
+        "igpu": snap.get("igpu"),
+        "gpus": snap.get("gpus", []),
         "disk": snap["disk"],
         "network": snap["network"],
         "boot_time": collector.boot_time,
@@ -228,6 +245,106 @@ def toggle_schedules(req: ScheduleToggleRequest):
 def delete_schedule(rule_id: str):
     asus_scheduler.delete_rule(rule_id)
     return asus_scheduler.get_status()
+
+
+class WolSendRequest(BaseModel):
+    mac: Optional[str] = None
+    target_ip: Optional[str] = "255.255.255.255"
+    port: Optional[int] = 9
+
+
+class MikrotikWolRequest(BaseModel):
+    host: Optional[str] = "100.95.32.60"
+    port: Optional[int] = 80
+    user: Optional[str] = "admin"
+    password: Optional[str] = ""
+    mac: Optional[str] = None
+    interface: Optional[str] = "ether3"
+    use_https: Optional[bool] = False
+
+
+@app.get("/api/wol/info")
+def get_wol_info():
+    return {
+        "mac": get_primary_mac(),
+        "mikrotik_tailscale": "100.95.32.60",
+        "mikrotik_lan": "192.168.80.1",
+        "default_interface": "ether3",
+        "default_port": 80
+    }
+
+
+@app.post("/api/wol/send")
+def send_direct_wol(req: WolSendRequest = WolSendRequest()):
+    clean_mac = (req.mac or get_primary_mac()).replace(":", "").replace("-", "")
+    if len(clean_mac) != 12:
+        raise HTTPException(status_code=400, detail="Невірний формат MAC-адреси")
+    try:
+        mac_bytes = bytes.fromhex(clean_mac)
+        payload = b"\xff" * 6 + mac_bytes * 16
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+            target = req.target_ip or "255.255.255.255"
+            port = req.port or 9
+            s.sendto(payload, (target, port))
+            if target != "255.255.255.255":
+                try:
+                    s.sendto(payload, ("255.255.255.255", 9))
+                except Exception:
+                    pass
+        return {"success": True, "message": f"WOL пакет надіслано на {target}:{port}"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/wol/mikrotik")
+def send_mikrotik_wol(req: MikrotikWolRequest = MikrotikWolRequest()):
+    mac = req.mac or get_primary_mac()
+    host = req.host or "100.95.32.60"
+    port = req.port or 80
+    proto = "https" if req.use_https else "http"
+    iface = req.interface or "ether3"
+    
+    body_data = json.dumps({"mac": mac, "interface": iface}).encode("utf-8")
+    auth_str = f"{req.user or 'admin'}:{req.password or ''}"
+    auth_b64 = base64.b64encode(auth_str.encode("utf-8")).decode("utf-8")
+    
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Basic {auth_b64}"
+    }
+    
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+    
+    hosts_to_try = [host]
+    if host == "100.95.32.60":
+        hosts_to_try.append("192.168.80.1")
+    elif host == "192.168.80.1":
+        hosts_to_try.append("100.95.32.60")
+        
+    last_err = None
+    for h in hosts_to_try:
+        target_url = f"{proto}://{h}:{port}/rest/tool/wol"
+        try:
+            r = urllib.request.Request(target_url, data=body_data, headers=headers, method="POST")
+            with urllib.request.urlopen(r, timeout=3, context=ctx) as resp:
+                resp_text = resp.read().decode("utf-8", errors="ignore")
+                return {
+                    "success": True,
+                    "target": target_url,
+                    "status": resp.status,
+                    "response": resp_text
+                }
+        except Exception as e:
+            last_err = e
+            
+    return {
+        "success": False,
+        "error": str(last_err),
+        "note": "Перевірте доступність MikroTik REST (IP service www) або облікові дані"
+    }
 
 
 @app.post("/api/asus/hibernate")

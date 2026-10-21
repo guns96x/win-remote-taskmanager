@@ -9,7 +9,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="icon" type="image/png" href="/icons/icon-192.png">
-  <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="/style.css?v=5.0">
 </head>
 <body>
   <div id="app" class="fluent-app">
@@ -283,6 +283,37 @@
             </div>
           </div>
 
+          <!-- Wake-on-LAN Section -->
+          <div class="asus-section-card" id="wol-card">
+            <div class="card-section-header">
+              <div class="header-badge-row">
+                <span class="asus-badge" style="background: rgba(16, 124, 65, 0.2); color: #6ccb5f; border-color: rgba(16, 124, 65, 0.4);">WAKE-ON-LAN</span>
+                <span id="wol-status-pill" class="status-pill screen-on">⚡ Готовий</span>
+              </div>
+              <h2 class="card-title">Пробудження комп'ютера (Wake-on-LAN)</h2>
+              <p class="card-desc">Дистанційне увімкнення вимкненого або сплячого ПК через роутер MikroTik або прямий сигнал з телефону.</p>
+            </div>
+
+            <div class="wol-target-info" style="display: flex; flex-direction: column; gap: 6px; padding: 12px; background: rgba(255,255,255,0.03); border-radius: 8px; margin: 10px 0; font-size: 13px;">
+              <div><b>MAC-адреса ПК:</b> <span id="wol-mac-display" style="font-family: monospace; color: #60cdff;">E8:9C:25:4C:4C:CA</span></div>
+              <div><b>Маршрутизатор:</b> <span style="color: #4ade80;">MikroTik (100.95.32.60 / 192.168.80.1)</span> • Порт <span style="font-family: monospace;">ether3</span></div>
+              <div><b>Метод зв'язку:</b> <span id="wol-method-label" style="color: #fbbf24;">Tailscale VPN + RouterOS REST</span></div>
+            </div>
+
+            <div class="wol-actions-row" style="display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap;">
+              <button id="btn-trigger-mikrotik-wol" class="screen-btn-primary" style="flex: 1; min-width: 200px; background: #107c41; border-color: #107c41;">
+                <span class="screen-btn-icon">⚡</span>
+                <span class="screen-btn-text">Пробудити через MikroTik</span>
+              </button>
+              <button id="btn-trigger-direct-wol" class="fluent-btn-outline" style="flex: 1; min-width: 160px;">
+                <span>📡 Прямий UDP сигнал</span>
+              </button>
+              <button id="btn-open-wol-settings" class="fluent-btn-secondary" style="padding: 10px 14px;">
+                <span>⚙️ Налаштування</span>
+              </button>
+            </div>
+          </div>
+
           <!-- ASUS Screen / Monitor Control -->
           <div class="asus-section-card">
             <div class="card-section-header">
@@ -552,6 +583,98 @@
       </div>
     </div>
 
+    <!-- Schedule Rule Modal -->
+    <div id="schedule-modal" class="modal-backdrop" style="display: none;">
+      <div class="confirm-dialog" style="max-width: 420px; width: 90%;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+          <h3 style="margin: 0; font-size: 18px; color: #fff;">➕ Новий розклад режимів</h3>
+          <button id="sched-modal-close" style="background: none; border: none; color: #aaa; font-size: 20px; cursor: pointer;">✕</button>
+        </div>
+        
+        <div style="display: flex; flex-direction: column; gap: 12px; text-align: left;">
+          <div>
+            <label style="font-size: 12px; color: #a0a0a0; display: block; margin-bottom: 4px;">Назва правила:</label>
+            <input type="text" id="sched-name-input" value="Тихий режим на ніч" style="width: 100%; padding: 8px 12px; background: #252525; border: 1px solid #3d3d3d; border-radius: 6px; color: #fff; box-sizing: border-box;">
+          </div>
+          <div>
+            <label style="font-size: 12px; color: #a0a0a0; display: block; margin-bottom: 4px;">Час спрацьовування (Год:Хв):</label>
+            <input type="time" id="sched-time-input" value="23:00" style="width: 100%; padding: 8px 12px; background: #252525; border: 1px solid #3d3d3d; border-radius: 6px; color: #fff; box-sizing: border-box;">
+          </div>
+          <div>
+            <label style="font-size: 12px; color: #a0a0a0; display: block; margin-bottom: 4px;">Профіль ASUS TUF:</label>
+            <select id="sched-mode-select" style="width: 100%; padding: 8px 12px; background: #252525; border: 1px solid #3d3d3d; border-radius: 6px; color: #fff; box-sizing: border-box;">
+              <option value="2" selected>🌿 Тихий режим (Silent • Без шуму кулерів)</option>
+              <option value="0">⚖️ Режим Баланс (Balanced • Стандартний)</option>
+              <option value="1">🚀 Режим Турбо (Turbo • Максимальна потужність)</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size: 12px; color: #a0a0a0; display: block; margin-bottom: 4px;">Підсвітка клавіатури Aura:</label>
+            <select id="sched-kbd-select" style="width: 100%; padding: 8px 12px; background: #252525; border: 1px solid #3d3d3d; border-radius: 6px; color: #fff; box-sizing: border-box;">
+              <option value="0" selected>💡 Вимкнути підсвітку (0)</option>
+              <option value="1">💡 Рівень 1 (Слабка)</option>
+              <option value="2">💡 Рівень 2 (Середня)</option>
+              <option value="3">💡 Рівень 3 (Максимальна)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="confirm-buttons" style="margin-top: 20px;">
+          <button id="sched-cancel-btn" class="fluent-btn-secondary" onclick="document.getElementById('schedule-modal').style.display='none'">Скасувати</button>
+          <button id="sched-save-btn" class="fluent-btn-primary">Зберегти правило</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Wake-on-LAN Settings Modal -->
+    <div id="wol-modal" class="modal-backdrop" style="display: none;">
+      <div class="confirm-dialog" style="max-width: 440px; width: 90%;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+          <h3 style="margin: 0; font-size: 18px; color: #fff;">⚙️ Налаштування Wake-on-LAN</h3>
+          <button id="wol-modal-close" style="background: none; border: none; color: #aaa; font-size: 20px; cursor: pointer;">✕</button>
+        </div>
+        
+        <div style="display: flex; flex-direction: column; gap: 10px; text-align: left; max-height: 60vh; overflow-y: auto;">
+          <div>
+            <label style="font-size: 12px; color: #a0a0a0; display: block; margin-bottom: 4px;">MAC-адреса ПК:</label>
+            <input type="text" id="wol-input-mac" value="E8:9C:25:4C:4C:CA" style="width: 100%; padding: 8px 12px; background: #252525; border: 1px solid #3d3d3d; border-radius: 6px; color: #60cdff; font-family: monospace; box-sizing: border-box;">
+          </div>
+          <div>
+            <label style="font-size: 12px; color: #a0a0a0; display: block; margin-bottom: 4px;">IP роутера MikroTik (Tailscale або LAN):</label>
+            <input type="text" id="wol-input-host" value="100.95.32.60" placeholder="100.95.32.60 або 192.168.80.1" style="width: 100%; padding: 8px 12px; background: #252525; border: 1px solid #3d3d3d; border-radius: 6px; color: #fff; box-sizing: border-box;">
+          </div>
+          <div style="display: flex; gap: 10px;">
+            <div style="flex: 1;">
+              <label style="font-size: 12px; color: #a0a0a0; display: block; margin-bottom: 4px;">Порт REST:</label>
+              <input type="number" id="wol-input-port" value="80" style="width: 100%; padding: 8px 12px; background: #252525; border: 1px solid #3d3d3d; border-radius: 6px; color: #fff; box-sizing: border-box;">
+            </div>
+            <div style="flex: 1;">
+              <label style="font-size: 12px; color: #a0a0a0; display: block; margin-bottom: 4px;">Інтерфейс:</label>
+              <input type="text" id="wol-input-iface" value="ether3" style="width: 100%; padding: 8px 12px; background: #252525; border: 1px solid #3d3d3d; border-radius: 6px; color: #fff; box-sizing: border-box;">
+            </div>
+          </div>
+          <div>
+            <label style="font-size: 12px; color: #a0a0a0; display: block; margin-bottom: 4px;">Користувач MikroTik:</label>
+            <input type="text" id="wol-input-user" value="admin" style="width: 100%; padding: 8px 12px; background: #252525; border: 1px solid #3d3d3d; border-radius: 6px; color: #fff; box-sizing: border-box;">
+          </div>
+          <div>
+            <label style="font-size: 12px; color: #a0a0a0; display: block; margin-bottom: 4px;">Пароль MikroTik:</label>
+            <input type="password" id="wol-input-pass" value="" placeholder="Залиште порожнім, якщо немає" style="width: 100%; padding: 8px 12px; background: #252525; border: 1px solid #3d3d3d; border-radius: 6px; color: #fff; box-sizing: border-box;">
+          </div>
+          <div style="margin-top: 4px;">
+            <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; color: #ddd; cursor: pointer;">
+              <input type="checkbox" id="wol-input-https">
+              <span>Використовувати HTTPS</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="confirm-buttons" style="margin-top: 20px;">
+          <button id="wol-save-btn" class="fluent-btn-primary" style="width: 100%;">Зберегти налаштування</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Toast Notification -->
     <div id="toast" class="fluent-toast" style="display: none;">
       <span id="toast-message">Повідомлення</span>
@@ -559,6 +682,6 @@
 
   </div>
 
-  <script src="/app.js"></script>
+  <script src="/app.js?v=5.0"></script>
 </body>
 </html>
